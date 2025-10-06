@@ -32,13 +32,13 @@ migrations/
 - Compte [Replicate](https://replicate.com)
 
 ## Variables d’environnement
-Crée un fichier `.env.local` à la racine :
+Copie le fichier `.env.example` vers `.env.local` puis renseigne :
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://veulahermznmcjnokeua.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldWxhaGVybXpubWNqbm9rZXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MDMzNTMsImV4cCI6MjA3NDM3OTM1M30.pvrwYi3HwDEkewcgCZ4Owm3vgBZhfgVowY1R4raxabA
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldWxhaGVybXpubWNqbm9rZXVhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODgwMzM1MywiZXhwIjoyMDc0Mzc5MzUzfQ.yFJhTDyhGda8HvOQ_2oI_6hbPhE-vFC_X1X85iKjyNI
-REPLICATE_API_TOKEN=r8_9aItlihXX0H6Muu6Y0cB0QJt4JBJ8LE4XARVe
+NEXT_PUBLIC_SUPABASE_URL=<votre-url-supabase>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<votre-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<votre-service-role-key>
+REPLICATE_API_TOKEN=<votre-token-replicate>
 SUPABASE_INPUT_BUCKET=input-images
 SUPABASE_OUTPUT_BUCKET=output-images
 ```
@@ -75,5 +75,6 @@ Site dispo sur [http://localhost:3000](http://localhost:3000).
 ## Notes
 - Les dépendances n’ont pas été installées dans cet environnement (pas d’accès réseau) : exécute `npm install` en local.
 - L’API `/api/generate` nécessite les buckets et la table configurés pour fonctionner.
+- Si des clés secrètes ont été partagées, régénère-les dans Supabase et Replicate avant de déployer publiquement.
 
 Bonne création visuelle ✨
