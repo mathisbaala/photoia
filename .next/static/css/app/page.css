@@ -1,0 +1,350 @@
+/*!********************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./app/components/AccentPill.module.css ***!
+  \********************************************************************************************************************************************************************************************************************************************************************************/
+.AccentPill_pill__UdulG {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: var(--accent);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+}
+
+.AccentPill_icon__uuU6M {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*!*********************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./app/components/FeatureList.module.css ***!
+  \*********************************************************************************************************************************************************************************************************************************************************************************/
+.FeatureList_grid__ycp4Z {
+  display: grid;
+  grid-gap: clamp(1.5rem, 3vw, 2.5rem);
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.FeatureList_card__ZGn5R {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.FeatureList_title__G4jKV {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.FeatureList_description__U6nI3 {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.FeatureList_description__U6nI3 code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.5rem;
+}
+
+@media (min-width: 880px) {
+  .FeatureList_grid__ycp4Z {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/*!**********************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./app/components/PreviewPanel.module.css ***!
+  \**********************************************************************************************************************************************************************************************************************************************************************************/
+.PreviewPanel_panel__ZCdbK {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.PreviewPanel_title__fQw8h {
+  font-size: 0.8rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.PreviewPanel_surface__G4iO_ {
+  position: relative;
+  min-height: 260px;
+  border-radius: 22px;
+  border: 1px dashed rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.PreviewPanel_image__HUH8q {
+  max-height: 340px;
+  width: 100%;
+  border-radius: 18px;
+  object-fit: contain;
+  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.18);
+}
+
+.PreviewPanel_placeholder__vsb_V {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: center;
+  max-width: 26ch;
+}
+
+/*!***************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./app/page.module.css ***!
+  \***************************************************************************************************************************************************************************************************************************************************************/
+.page_main__nw1Wk {
+  min-height: 100vh;
+  padding: clamp(2.5rem, 5vw, 4.5rem) clamp(1.5rem, 4vw, 3.5rem);
+  display: flex;
+  justify-content: center;
+}
+
+.page_container__jZF7q {
+  width: min(1100px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2rem, 6vw, 3.5rem);
+}
+
+.page_hero__7KFOs {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(2.5rem, 5vw, 4rem);
+  border-radius: 36px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(18px);
+          backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.page_hero__7KFOs::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.16), transparent 60%);
+  opacity: 0.9;
+}
+
+.page_hero__7KFOs > * {
+  position: relative;
+  z-index: 1;
+}
+
+.page_title__po7na {
+  font-size: clamp(2.75rem, 5vw, 3.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.page_subtitle__YBgxm {
+  max-width: 54ch;
+  font-size: 1rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.page_formCard__Dd1JG {
+  border-radius: 36px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(18px);
+          backdrop-filter: blur(18px);
+  padding: clamp(2.25rem, 4vw, 3rem);
+  display: grid;
+  grid-gap: clamp(1.75rem, 4vw, 2.5rem);
+  gap: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.page_formGrid__iGp3j {
+  display: grid;
+  grid-gap: clamp(1.5rem, 3vw, 2rem);
+  gap: clamp(1.5rem, 3vw, 2rem);
+}
+
+.page_hiddenInput__No4Xw {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.page_dropzone__VV1Wy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  border: 2px dashed var(--border);
+  border-radius: 28px;
+  padding: clamp(2rem, 4vw, 2.75rem);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
+  transition: border-color 160ms ease, transform 160ms ease, background 220ms ease;
+  cursor: pointer;
+}
+
+.page_dropzone__VV1Wy:hover,
+.page_dropzone__VV1Wy:focus-within {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(219, 234, 254, 0.65));
+  transform: translateY(-2px);
+}
+
+.page_dropzoneText__2CLSo {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.page_dropzoneHint__DJkJK {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.page_textareaBlock__Saeoq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  padding: clamp(1.5rem, 3vw, 2rem);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.75), rgba(245, 248, 255, 0.9));
+}
+
+.page_textareaLabel__xczGs {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.page_textarea__aR4ZX {
+  resize: none;
+  width: 100%;
+  min-height: 168px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.page_textarea__aR4ZX:focus {
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+.page_actions___si5r {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.page_submit__zUj4V {
+  border: none;
+  border-radius: 999px;
+  padding: 0.95rem 1.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(120deg, #2563eb, #4f46e5);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  cursor: pointer;
+}
+
+.page_submit__zUj4V:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(37, 99, 235, 0.28);
+  filter: brightness(1.05);
+}
+
+.page_submit__zUj4V:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  box-shadow: none;
+}
+
+.page_status__e5ASC {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.page_error__JBrsB {
+  font-size: 0.8rem;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.page_previewGrid__ovlw8 {
+  display: grid;
+  grid-gap: clamp(1.5rem, 3vw, 2rem);
+  gap: clamp(1.5rem, 3vw, 2rem);
+}
+
+.page_previewCard__DjDWq {
+  border-radius: 30px;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(243, 246, 255, 0.82));
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(12px);
+          backdrop-filter: blur(12px);
+  padding: clamp(1.75rem, 3vw, 2.25rem);
+}
+
+.page_featureSection__K1CqJ {
+  border-radius: 36px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(18px);
+          backdrop-filter: blur(18px);
+  padding: clamp(2.5rem, 4vw, 3.25rem);
+}
+
+
+
+
+
+
+@media (min-width: 880px) {
+  .page_formGrid__iGp3j {
+    grid-template-columns: 1.15fr 1fr;
+  }
+
+  .page_previewGrid__ovlw8 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+}
+

@@ -1,0 +1,36 @@
+.grid {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.description {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.description code {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.5rem;
+}
+
+@media (min-width: 880px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
