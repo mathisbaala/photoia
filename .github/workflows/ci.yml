@@ -3,11 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - main
-      - master
+      - '**'
   pull_request:
     branches:
-      - "*"
+      - '**'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -33,21 +32,21 @@ jobs:
       - name: Lint
         run: npm run lint
         env:
-          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'public-anon-key' }}
 
       - name: Type check
         run: npm run typecheck
         env:
-          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'public-anon-key' }}
 
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key"
-          SUPABASE_SERVICE_ROLE_KEY: "service-role-key"
-          SUPABASE_INPUT_BUCKET: "input-images"
-          SUPABASE_OUTPUT_BUCKET: "output-images"
-          REPLICATE_API_TOKEN: "replicate-api-token"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'public-anon-key' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key' }}
+          SUPABASE_INPUT_BUCKET: ${{ secrets.SUPABASE_INPUT_BUCKET || 'input-images' }}
+          SUPABASE_OUTPUT_BUCKET: ${{ secrets.SUPABASE_OUTPUT_BUCKET || 'output-images' }}
+          REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN || 'replicate-api-token' }}
