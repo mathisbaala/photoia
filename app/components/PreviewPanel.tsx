@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import styles from "./PreviewPanel.module.css";
 
@@ -16,7 +17,18 @@ export function PreviewPanel({ title, children }: PreviewPanelProps) {
 }
 
 export function PreviewImage({ src, alt }: { src: string; alt: string }) {
-  return <img src={src} alt={alt} className={styles.image} loading="lazy" />;
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      className={styles.image}
+      width={800}
+      height={600}
+      sizes="(max-width: 880px) 100vw, 50vw"
+      loading="lazy"
+      unoptimized
+    />
+  );
 }
 
 export function PreviewPlaceholder({ children }: { children: ReactNode }) {

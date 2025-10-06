@@ -30,4 +30,20 @@ export const features: FeatureItem[] = [
       </>
     ),
   },
+  {
+    title: "CI GitHub prête",
+    description: (
+      <>
+        Un workflow GitHub Actions lint, typecheck et build chaque branche pour sécuriser les merges sans surprises.
+      </>
+    ),
+  },
+  {
+    title: "Interface guidée",
+    description: (
+      <>
+        Zone de dépôt animée, compteur de prompt et téléchargement du rendu facilitent l’onboarding des créatifs.
+      </>
+    ),
+  },
 ];

@@ -1,5 +1,5 @@
 {
-  "name": "cours3",
+  "name": "photoia",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "lint:fix": "next lint --fix",
+    "check": "npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -23,5 +26,27 @@
     "eslint": "^9.10.0",
     "eslint-config-next": "15.0.0",
     "typescript": "^5.5.3"
+  },
+  "description": "VisionCraft Studio \u2013 \u00e9diteur photo propuls\u00e9 par l'IA",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mathisbaala/photoia.git"
+  },
+  "homepage": "https://github.com/mathisbaala/photoia",
+  "bugs": {
+    "url": "https://github.com/mathisbaala/photoia/issues"
+  },
+  "keywords": [
+    "nextjs",
+    "supabase",
+    "ai",
+    "replicate",
+    "photoia",
+    "image-editing"
+  ],
+  "author": "Mathis Baala",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

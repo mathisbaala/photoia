@@ -1,35 +1,45 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useState } from "react";
 import { AccentPill } from "@/components/AccentPill";
 import { FeatureList } from "@/components/FeatureList";
+import { GithubCallout } from "@/components/GithubCallout";
 import { PreviewImage, PreviewPanel, PreviewPlaceholder } from "@/components/PreviewPanel";
+import { UploadCloudIcon } from "@/components/icons";
 import { features } from "@/content/features";
 import styles from "./page.module.css";
 
+const DEFAULT_PROMPT = "Rends l'image plus lumineuse et ajoute un style aquarelle";
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = useState("Rends l'image plus lumineuse et ajoute un style aquarelle");
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [preview, setPreview] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isDragging, setDragging] = useState(false);
 
-  const isReady = useMemo(() => !!file && prompt.trim().length > 3, [file, prompt]);
+  const promptLength = prompt.trim().length;
+  const isReady = Boolean(file && promptLength > 3);
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0];
+  function resetFeedback() {
+    setGeneratedUrl(null);
+    setStatus("");
+    setError(null);
+  }
+
+  function loadFile(selected: File | null) {
     if (!selected) {
       setFile(null);
       setPreview(null);
+      resetFeedback();
       return;
     }
 
     setFile(selected);
-    setGeneratedUrl(null);
-    setStatus("");
-    setError(null);
+    resetFeedback();
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -38,9 +48,45 @@ export default function Home() {
     reader.readAsDataURL(selected);
   }
 
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    loadFile(selected);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    if (!isDragging) {
+      setDragging(true);
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    const nextTarget = event.relatedTarget as Node | null;
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setDragging(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files?.[0] ?? null;
+    loadFile(dropped);
+  }
+
+  function handleReset() {
+    setFile(null);
+    setPreview(null);
+    setPrompt(DEFAULT_PROMPT);
+    resetFeedback();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file || !isReady) return;
+    if (!file || !isReady) {
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -74,6 +120,14 @@ export default function Home() {
     }
   }
 
+  const dropzoneClassName = [
+    styles.dropzone,
+    isDragging ? styles.dropzoneActive : "",
+    file ? styles.dropzoneFilled : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <main className={styles.main}>
       <section className={styles.container}>
@@ -88,7 +142,13 @@ export default function Home() {
 
         <form onSubmit={handleSubmit} className={styles.formCard} noValidate>
           <div className={styles.formGrid}>
-            <label className={styles.dropzone} htmlFor="image-upload">
+            <label
+              className={dropzoneClassName}
+              htmlFor="image-upload"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <input
                 id="image-upload"
                 type="file"
@@ -96,6 +156,7 @@ export default function Home() {
                 className={styles.hiddenInput}
                 onChange={handleFileChange}
               />
+              <UploadCloudIcon className={styles.dropzoneIcon} />
               <span className={styles.dropzoneText}>
                 {file ? file.name : "Glissez-déposez ou sélectionnez une image"}
               </span>
@@ -111,23 +172,29 @@ export default function Home() {
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 rows={6}
+                maxLength={280}
                 className={styles.textarea}
                 placeholder="Ex : transforme la scène en style cyberpunk avec palette violette"
               />
+              <div className={styles.helperRow}>
+                <span className={styles.helperText}>Minimum 4 caractères</span>
+                <span className={styles.helperCount}>{promptLength} / 280</span>
+              </div>
               <div className={styles.actions}>
                 <button type="submit" disabled={!isReady || loading} className={styles.submit}>
                   {loading ? "Génération en cours…" : "Générer"}
                 </button>
-                {status && (
-                  <p className={styles.status} aria-live="polite">
-                    {status}
-                  </p>
-                )}
-                {error && (
-                  <p className={styles.error} role="alert">
-                    {error}
-                  </p>
-                )}
+                <button type="button" onClick={handleReset} className={styles.secondary}>
+                  Réinitialiser
+                </button>
+                <div className={styles.feedback} aria-live="polite">
+                  {status && <p className={styles.status}>{status}</p>}
+                  {error && (
+                    <p className={styles.error} role="alert">
+                      {error}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -153,12 +220,28 @@ export default function Home() {
                   </PreviewPlaceholder>
                 )}
               </PreviewPanel>
+              {generatedUrl && (
+                <div className={styles.previewActions}>
+                  <a
+                    href={generatedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.download}
+                  >
+                    Télécharger l’image
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </form>
 
         <section className={styles.featureSection}>
           <FeatureList items={features} />
+        </section>
+
+        <section className={styles.systemSection}>
+          <GithubCallout />
         </section>
       </section>
     </main>

@@ -22,3 +22,13 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Tooling
+.vercel/
+.turbo/
+coverage/
+logs/
+*.log
+
+# macOS
+Icon?
