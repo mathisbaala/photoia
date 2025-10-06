@@ -1,0 +1,24 @@
+# Node and Next.js artifacts
+node_modules/
+.next/
+
+# Build outputs
+out/
+dist/
+
+# Env and local config
+.env*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Temporary files
+.DS_Store
+*.tmp
+
+# TypeScript
+*.tsbuildinfo
