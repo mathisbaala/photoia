@@ -72,15 +72,23 @@ SUPABASE_OUTPUT_BUCKET=output-images
 ## Structure du projet
 ```
 app/
-  components/          → UI réutilisables (AccentPill, PreviewPanel, GithubCallout…)
-  content/features.tsx → Copy/features affichées sur la page
-  api/generate/        → Route POST qui orchestre Supabase & Replicate
-  lib/                 → Clients Supabase, Replicate, types
-  page.tsx             → Interface principale
-  globals.css          → Styles globaux
+  components/            → UI réutilisables (AccentPill, PreviewPanel, GithubCallout…)
+  context/               → AuthProvider & hook `useAuth`
+  content/features.tsx   → Copy/features affichées sur la page
+  api/
+    generate/            → Route POST qui orchestre Supabase & Replicate
+    delete/              → Route DELETE pour nettoyer projets + fichiers
+  dashboard/page.tsx     → Tableau de bord authentifié (upload + galerie)
+  login/page.tsx         → Page de connexion email/mot de passe
+  signup/page.tsx        → Page d’inscription
+  lib/                   → Clients Supabase (browser, route handler, service) & types
+  page.tsx               → Landing avec CTA vers /signup
+  globals.css            → Styles globaux
 migrations/
   001_create_projects.sql → Schéma de la table `projects`
-.env.example             → Modèle d’environnement sans secrets
+  002_secure_projects.sql → Colonne `user_id`, index & policies RLS
+.env.example              → Modèle d’environnement sans secrets
+middleware.ts             → Protection /dashboard et /api via Supabase RLS
 ```
 
 ## Flux GitHub & CI/CD
@@ -92,7 +100,7 @@ migrations/
 1. Déploie sur Vercel (ou autre) après avoir installé les dépendances.
 2. Renseigne les variables d’environnement dans le dashboard (mêmes clés que ci-dessus).
 3. Crée les buckets Supabase `input-images` et `output-images` si besoin.
-4. Exécute `migrations/001_create_projects.sql` pour créer la table `projects` :
+4. Exécute `migrations/001_create_projects.sql` puis `migrations/002_secure_projects.sql` pour créer et sécuriser la table `projects` :
    ```sql
    CREATE TABLE projects (
      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Header } from "@/components/Header";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 
 const siteUrl = "https://photoia.vercel.app";
@@ -45,7 +47,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <Header />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

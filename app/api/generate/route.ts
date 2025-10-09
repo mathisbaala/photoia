@@ -1,12 +1,29 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
+import { supabaseRoute } from "@/lib/supabase-route";
 import { getReplicateClient } from "@/lib/replicate";
+import type { Database } from "@/lib/database.types";
+
+type ProjectInsert = Database["public"]["Tables"]["projects"]["Insert"];
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const supabaseUser = supabaseRoute();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseUser.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Impossible de vérifier la session Supabase." },
+        { status: 401 },
+      );
+    }
+
     const formData = await request.formData();
     const image = formData.get("image");
     const prompt = (formData.get("prompt") ?? "").toString().trim();
@@ -25,8 +42,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = getSupabaseServiceClient();
-    if (!supabase) {
+    const supabaseService = getSupabaseServiceClient();
+    if (!supabaseService) {
       return NextResponse.json(
         { error: "Configuration Supabase incomplète côté serveur." },
         { status: 500 },
@@ -39,7 +56,7 @@ export async function POST(request: Request) {
     const inputPath = `raw/${projectId}-${image.name.replace(/\s+/g, "-")}`;
 
     const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const uploadInput = await supabase.storage
+    const uploadInput = await supabaseService.storage
       .from(inputBucket)
       .upload(inputPath, imageBuffer, {
         contentType: image.type || "image/png",
@@ -50,7 +67,7 @@ export async function POST(request: Request) {
       throw new Error(uploadInput.error.message);
     }
 
-    const { data: inputPublic } = supabase.storage
+    const { data: inputPublic } = supabaseService.storage
       .from(inputBucket)
       .getPublicUrl(inputPath);
 
@@ -93,7 +110,7 @@ export async function POST(request: Request) {
     const generatedBuffer = Buffer.from(await generatedResponse.arrayBuffer());
     const outputPath = `generated/${projectId}.png`;
 
-    const uploadOutput = await supabase.storage
+    const uploadOutput = await supabaseService.storage
       .from(outputBucket)
       .upload(outputPath, generatedBuffer, {
         contentType: generatedResponse.headers.get("content-type") ?? "image/png",
@@ -104,7 +121,7 @@ export async function POST(request: Request) {
       throw new Error(uploadOutput.error.message);
     }
 
-    const { data: outputPublic } = supabase.storage
+    const { data: outputPublic } = supabaseService.storage
       .from(outputBucket)
       .getPublicUrl(outputPath);
 
@@ -112,17 +129,18 @@ export async function POST(request: Request) {
       throw new Error("Impossible de récupérer l'URL publique de l'image générée.");
     }
 
-    const { error: insertError } = await supabase
+    const newProject: ProjectInsert = {
+      id: projectId,
+      input_image_url: inputPublic.publicUrl,
+      output_image_url: outputPublic.publicUrl,
+      prompt,
+      status: "completed",
+      user_id: user.id,
+    };
+
+    const { error: insertError } = await (supabaseUser as any)
       .from("projects")
-      .insert([
-        {
-          id: projectId,
-          input_image_url: inputPublic.publicUrl,
-          output_image_url: outputPublic.publicUrl,
-          prompt,
-          status: "completed",
-        },
-      ]);
+      .insert(newProject);
 
     if (insertError) {
       throw new Error(insertError.message);
