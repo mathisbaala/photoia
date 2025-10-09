@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase-admin";
 import { supabaseRoute } from "@/lib/supabase-route";
 import { getReplicateClient } from "@/lib/replicate";
 import type { Database } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type ProjectInsert = Database["public"]["Tables"]["projects"]["Insert"];
 
@@ -11,7 +12,8 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const supabaseUser = supabaseRoute();
+    const supabaseUser = await supabaseRoute();
+    const supabaseTyped = supabaseUser as unknown as SupabaseClient<Database, "public">;
     const {
       data: { user },
       error: userError,
@@ -129,18 +131,18 @@ export async function POST(request: Request) {
       throw new Error("Impossible de récupérer l'URL publique de l'image générée.");
     }
 
-    const newProject: ProjectInsert = {
-      id: projectId,
-      input_image_url: inputPublic.publicUrl,
-      output_image_url: outputPublic.publicUrl,
-      prompt,
-      status: "completed",
-      user_id: user.id,
-    };
-
-    const { error: insertError } = await (supabaseUser as any)
+    const { error: insertError } = await supabaseTyped
       .from("projects")
-      .insert(newProject);
+      .insert([
+        {
+          id: projectId,
+          input_image_url: inputPublic.publicUrl,
+          output_image_url: outputPublic.publicUrl,
+          prompt,
+          status: "completed",
+          user_id: user.id,
+        } satisfies ProjectInsert,
+      ]);
 
     if (insertError) {
       throw new Error(insertError.message);

@@ -9,7 +9,8 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
 
   if (code) {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
     await supabase.auth.exchangeCodeForSession(code);
   }
 

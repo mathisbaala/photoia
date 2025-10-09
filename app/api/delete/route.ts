@@ -31,7 +31,7 @@ function extractStoragePath(url: string | null, bucket: string) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = supabaseRoute();
+    const supabase = await supabaseRoute();
     const {
       data: { user },
       error: authError,
