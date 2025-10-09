@@ -17,13 +17,14 @@ const tabs: Array<{ id: "login" | "signup"; label: string }> = [
 
 export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
   const router = useRouter();
-  const { signIn, signUp } = useAuth();
+  const { supabase, signIn, signUp } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -71,8 +72,65 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
     }
   }
 
+  async function handleGoogleSignIn() {
+    if (socialLoading) {
+      return;
+    }
+
+    try {
+      setSocialLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: origin
+          ? {
+              redirectTo: `${origin}/auth/callback?next=/dashboard`,
+            }
+          : undefined,
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Impossible de lancer la connexion Google pour le moment.";
+      setError(message);
+    } finally {
+      setSocialLoading(false);
+    }
+  }
+
   return (
     <div className={styles.card}>
+      <button
+        type="button"
+        className={styles.oauthButton}
+        onClick={handleGoogleSignIn}
+        disabled={socialLoading || loading}
+      >
+        <span className={styles.oauthIcon} aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path
+              fill="#EA4335"
+              d="M12 10.2v3.6h5.1c-.2 1.2-1.4 3.5-5.1 3.5-3.1 0-5.6-2.6-5.6-5.8s2.5-5.8 5.6-5.8c1.8 0 3 .8 3.6 1.4l2.4-2.3C16.4 3.4 14.4 2.5 12 2.5 6.8 2.5 2.6 6.7 2.6 12s4.2 9.5 9.4 9.5c5.4 0 8.9-3.8 8.9-9.2 0-.6-.1-1-.2-1.6H12z"
+            />
+          </svg>
+        </span>
+        {socialLoading ? "Connexion en cours…" : "Continuer avec Google"}
+      </button>
+
+      <div className={styles.oauthSeparator}>
+        <span className={styles.separatorLine} />
+        <span className={styles.separatorLabel}>ou</span>
+        <span className={styles.separatorLine} />
+      </div>
+
       <div className={styles.tabs}>
         {tabs.map((tab) => (
           <button
