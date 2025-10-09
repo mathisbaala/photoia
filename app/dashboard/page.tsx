@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
 
   const promptLength = prompt.trim().length;
   const isReady = Boolean(file && promptLength > 3);
@@ -71,6 +73,28 @@ export default function DashboardPage() {
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  useEffect(() => {
+    if (!copiedPromptId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopiedPromptId(null), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [copiedPromptId]);
+
+  const filteredProjects = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) {
+      return projects;
+    }
+    return projects.filter((project) => project.prompt?.toLowerCase().includes(query));
+  }, [projects, searchTerm]);
+
+  const totalProjects = projects.length;
+  const filteredCount = filteredProjects.length;
+  const hasActiveFilter = Boolean(searchTerm.trim());
+  const skeletonCount = Math.min(Math.max(totalProjects || 3, 3), 6);
 
   const dropzoneClassName = useMemo(
     () =>
@@ -142,6 +166,34 @@ export default function DashboardPage() {
     resetFeedback();
   }
 
+  function handleReusePrompt(nextPrompt: string | null) {
+    if (!nextPrompt) {
+      return;
+    }
+
+    setPrompt(nextPrompt);
+    setStatus("Prompt prêt à être regénéré ✨");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  async function handleCopyPrompt(projectId: string, projectPrompt: string | null) {
+    if (!projectPrompt) {
+      return;
+    }
+
+    try {
+      setProjectsError(null);
+      await navigator.clipboard.writeText(projectPrompt);
+      setStatus("Prompt copié dans le presse-papiers ✅");
+      setCopiedPromptId(projectId);
+    } catch (copyError) {
+      console.error("Erreur lors de la copie du prompt", copyError);
+      setProjectsError("Impossible de copier le prompt sur cet appareil.");
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file || !isReady || loading) {
@@ -150,7 +202,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     setError(null);
-    setStatus("Téléversement & génération en cours…");
+    setStatus("Étape 1/3 — préparation de la génération…");
     setGeneratedUrl(null);
 
     try {
@@ -158,6 +210,7 @@ export default function DashboardPage() {
       body.append("image", file);
       body.append("prompt", prompt);
 
+      setStatus("Étape 2/3 — génération IA en cours…");
       const response = await fetch("/api/generate", {
         method: "POST",
         body,
@@ -169,6 +222,7 @@ export default function DashboardPage() {
         throw new Error(payload?.error ?? "Une erreur est survenue.");
       }
 
+      setStatus("Étape 3/3 — archivage Supabase…");
       const data = (await response.json()) as { outputUrl: string };
       setGeneratedUrl(data.outputUrl);
       setStatus("Génération terminée ✔️");
@@ -176,7 +230,7 @@ export default function DashboardPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Impossible de générer l'image.";
       setError(message);
-      setStatus("");
+      setStatus("Échec de la génération.");
     } finally {
       setLoading(false);
     }
@@ -185,6 +239,7 @@ export default function DashboardPage() {
   async function handleDelete(projectId: string) {
     setDeletingId(projectId);
     setProjectsError(null);
+    setStatus("Suppression du projet en cours…");
 
     try {
       const response = await fetch("/api/delete", {
@@ -200,10 +255,12 @@ export default function DashboardPage() {
       }
 
       setProjects((previous) => previous.filter((project) => project.id !== projectId));
+      setStatus("Projet supprimé ✔️");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "La suppression du projet a échoué.";
       setProjectsError(message);
+      setStatus("Impossible de supprimer le projet.");
     } finally {
       setDeletingId(null);
     }
@@ -327,69 +384,165 @@ export default function DashboardPage() {
 
         <section className={styles.projectsSection}>
           <div className={styles.projectsHeader}>
-            <h2 className={styles.projectsTitle}>Mes projets</h2>
-            <p className={styles.projectsSubtitle}>
-              Historique des transformations réalisées avec VisionCraft. Chaque ligne est isolée par
-              Supabase via la colonne <code>user_id</code>.
-            </p>
-            {projectsError && <p className={styles.projectsError}>{projectsError}</p>}
+            <div>
+              <h2 className={styles.projectsTitle}>Mes projets</h2>
+              <p className={styles.projectsSubtitle}>
+                Historique des transformations réalisées avec VisionCraft. Chaque ligne est isolée
+                par Supabase via la colonne <code>user_id</code>.
+              </p>
+            </div>
+            <div className={styles.projectsToolbar}>
+              <label className={styles.searchLabel} htmlFor="project-search">
+                Rechercher un prompt
+              </label>
+              <input
+                id="project-search"
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Ex : cyberpunk, aquarelle, portrait…"
+                className={styles.searchInput}
+              />
+              <span className={styles.countPill}>
+                {filteredCount} / {totalProjects || 0} projet
+                {filteredCount !== 1 ? "s" : ""}
+              </span>
+            </div>
           </div>
 
+          {projectsError && <p className={styles.projectsError}>{projectsError}</p>}
+
           {projectsLoading ? (
-            <p>Chargement des projets en cours…</p>
-          ) : projects.length === 0 ? (
-            <p className={styles.emptyState}>
-              Aucune transformation pour le moment. Téléversez votre première image ci-dessus pour
-              commencer.
-            </p>
+            <div className={styles.projectsGrid}>
+              {Array.from({ length: skeletonCount }).map((_, index) => (
+                <div key={index} className={styles.skeletonCard}>
+                  <div className={styles.skeletonHeader}>
+                    <div className={styles.skeletonLineLarge} />
+                    <div className={styles.skeletonTag} />
+                  </div>
+                  <div className={styles.skeletonLine} />
+                  <div className={styles.skeletonImage} />
+                  <div className={styles.skeletonActions}>
+                    <div className={styles.skeletonButton} />
+                    <div className={styles.skeletonButton} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredCount === 0 ? (
+            hasActiveFilter ? (
+              <p className={styles.emptyState}>
+                Aucun projet ne correspond à « {searchTerm} ». Ajustez votre recherche ou générez une
+                nouvelle image.
+              </p>
+            ) : (
+              <p className={styles.emptyState}>
+                Aucune transformation pour le moment. Téléversez votre première image ci-dessus pour
+                commencer.
+              </p>
+            )
           ) : (
             <div className={styles.projectsGrid}>
-              {projects.map((project) => (
-                <article key={project.id} className={styles.projectCard}>
-                  <div className={styles.projectMeta}>
-                    <strong>{project.prompt}</strong>
-                    <span>{new Date(project.created_at).toLocaleString("fr-FR")}</span>
-                    <span>Statut : {project.status ?? "inconnu"}</span>
-                  </div>
-                  <div className={styles.projectImages}>
-                    {project.input_image_url && (
-                      <Image
-                        src={project.input_image_url}
-                        alt="Image originelle"
-                        width={800}
-                        height={600}
-                        sizes="(max-width: 600px) 100vw, 50vw"
-                        className={styles.projectImage}
-                      />
+              {filteredProjects.map((project) => {
+                const statusLabel =
+                  project.status === "completed"
+                    ? "Terminé"
+                    : project.status === "processing"
+                      ? "En cours"
+                      : project.status ?? "Inconnu";
+
+                return (
+                  <article key={project.id} className={styles.projectCard}>
+                    <div className={styles.projectMeta}>
+                      <div className={styles.projectMetaRow}>
+                        <strong>{project.prompt || "Prompt indisponible"}</strong>
+                        <span
+                          className={styles.projectStatus}
+                          data-status={project.status ?? "unknown"}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <span className={styles.projectDate}>
+                        {new Date(project.created_at).toLocaleString("fr-FR")}
+                      </span>
+                    </div>
+                    <div className={styles.projectImages}>
+                      {project.input_image_url && (
+                        <Image
+                          src={project.input_image_url}
+                          alt="Image originelle"
+                          width={800}
+                          height={600}
+                          sizes="(max-width: 600px) 100vw, 50vw"
+                          className={styles.projectImage}
+                        />
+                      )}
+                      {project.output_image_url && (
+                        <Image
+                          src={project.output_image_url}
+                          alt="Image générée"
+                          width={800}
+                          height={600}
+                          sizes="(max-width: 600px) 100vw, 50vw"
+                          className={styles.projectImage}
+                        />
+                      )}
+                    </div>
+                    <div className={styles.projectFooter}>
+                      <div className={styles.projectLinks}>
+                        {project.input_image_url && (
+                          <Link
+                            href={project.input_image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.projectLink}
+                          >
+                            Original
+                          </Link>
+                        )}
+                        {project.output_image_url && (
+                          <Link
+                            href={project.output_image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.projectLink}
+                          >
+                            Résultat
+                          </Link>
+                        )}
+                      </div>
+                      <div className={styles.projectActions}>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPrompt(project.id, project.prompt)}
+                          className={styles.copyButton}
+                        >
+                          Copier le prompt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReusePrompt(project.prompt)}
+                          className={styles.reuseButton}
+                        >
+                          Réutiliser
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(project.id)}
+                          className={styles.deleteButton}
+                          disabled={Boolean(deletingId) && deletingId === project.id}
+                        >
+                          {deletingId === project.id ? "Suppression…" : "Supprimer"}
+                        </button>
+                      </div>
+                    </div>
+                    {copiedPromptId === project.id && (
+                      <p className={styles.copyFeedback}>Prompt copié ✅</p>
                     )}
-                    {project.output_image_url && (
-                      <Image
-                        src={project.output_image_url}
-                        alt="Image générée"
-                        width={800}
-                        height={600}
-                        sizes="(max-width: 600px) 100vw, 50vw"
-                        className={styles.projectImage}
-                      />
-                    )}
-                  </div>
-                  <div className={styles.projectActions}>
-                    {project.output_image_url && (
-                      <Link href={project.output_image_url} target="_blank" rel="noopener noreferrer">
-                        Télécharger
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(project.id)}
-                      className={styles.deleteButton}
-                      disabled={Boolean(deletingId) && deletingId === project.id}
-                    >
-                      {deletingId === project.id ? "Suppression…" : "Supprimer"}
-                    </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

@@ -342,6 +342,54 @@
   font-size: 0.9rem;
 }
 
+.projectsToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 18px;
+  padding: 0.65rem 1rem;
+}
+
+.searchLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.searchInput {
+  flex: 1 1 220px;
+  min-width: 200px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.9);
+  transition: border 160ms ease, box-shadow 160ms ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.countPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
 .projectsGrid {
   display: grid;
   gap: clamp(1.5rem, 3vw, 2rem);
@@ -362,16 +410,46 @@
 .projectMeta {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
+}
+
+.projectMetaRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .projectMeta strong {
-  font-size: 0.92rem;
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
-.projectMeta span {
-  font-size: 0.82rem;
+.projectDate {
+  font-size: 0.8rem;
   color: var(--muted);
+}
+
+.projectStatus {
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--accent);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.projectStatus[data-status="processing"] {
+  background: rgba(250, 204, 21, 0.22);
+  color: #b45309;
+}
+
+.projectStatus[data-status="unknown"],
+.projectStatus[data-status="error"] {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
 }
 
 .projectImages {
@@ -387,43 +465,78 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
-.projectActions {
+.projectFooter {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 0.75rem;
+}
+
+.projectLinks {
+  display: flex;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.projectActions a {
+.projectLink {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.55rem 1.1rem;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(37, 99, 235, 0.12);
   color: var(--accent);
   font-weight: 600;
-  text-decoration: none;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   transition: background 150ms ease, transform 150ms ease;
 }
 
-.projectActions a:hover {
+.projectLink:hover {
   background: rgba(37, 99, 235, 0.2);
   transform: translateY(-1px);
 }
 
+.projectActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.copyButton,
+.reuseButton,
 .deleteButton {
   border: none;
   border-radius: 999px;
-  padding: 0.55rem 1.1rem;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease, color 150ms ease;
+}
+
+.copyButton {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+}
+
+.copyButton:hover {
+  background: rgba(37, 99, 235, 0.2);
+  transform: translateY(-1px);
+}
+
+.reuseButton {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.reuseButton:hover {
+  background: rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+.deleteButton {
   background: rgba(239, 68, 68, 0.12);
   color: #b91c1c;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 150ms ease, transform 150ms ease;
 }
 
 .deleteButton:hover:not(:disabled) {
@@ -436,6 +549,12 @@
   cursor: not-allowed;
 }
 
+.copyFeedback {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #0f766e;
+}
+
 .emptyState {
   padding: 1.25rem;
   border-radius: 18px;
@@ -444,12 +563,83 @@
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .projectsError {
   color: #dc2626;
   font-size: 0.85rem;
   margin: 0;
+}
+
+.skeletonCard {
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.skeletonLineLarge,
+.skeletonLine,
+.skeletonTag,
+.skeletonImage,
+.skeletonButton {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+}
+
+.skeletonLineLarge {
+  width: 65%;
+  height: 0.75rem;
+}
+
+.skeletonTag {
+  width: 24%;
+  height: 0.6rem;
+}
+
+.skeletonLine {
+  width: 82%;
+  height: 0.55rem;
+}
+
+.skeletonImage {
+  border-radius: 18px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+
+.skeletonActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.skeletonButton {
+  flex: 1;
+  height: 0.65rem;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+  }
 }
 
 @media (min-width: 640px) {
@@ -470,5 +660,11 @@
 @media (min-width: 880px) {
   .previewGrid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .projectFooter {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 }
