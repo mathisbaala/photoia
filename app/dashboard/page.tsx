@@ -40,9 +40,42 @@ export default function DashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
 
   const promptLength = prompt.trim().length;
   const isReady = Boolean(file && promptLength > 3);
+
+  // Vérifier si on revient d'un paiement réussi
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get("session_id");
+    
+    if (sessionId && user) {
+      // Vérifier si on a un projet en attente avec ce session_id
+      checkPendingProject(sessionId);
+    }
+  }, [user]);
+
+  async function checkPendingProject(sessionId: string) {
+    try {
+      const { data: projects } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("stripe_checkout_session_id", sessionId)
+        .eq("payment_status", "paid");
+
+      if (projects && projects.length > 0) {
+        const project = projects[0] as Project;
+        setPendingProjectId(project.id);
+        setStatus("✅ Paiement confirmé ! Vous pouvez maintenant lancer la génération.");
+        
+        // Nettoyer l'URL
+        window.history.replaceState({}, "", "/dashboard");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la vérification du projet:", error);
+    }
+  }
 
   const loadProjects = useCallback(async () => {
     if (!user) {
@@ -178,6 +211,65 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleLaunchGeneration() {
+    if (!pendingProjectId || loading) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setStatus("Étape 3/4 — récupération des données…");
+    setGeneratedUrl(null);
+
+    try {
+      // Récupérer l'image et le prompt du localStorage
+      const pendingData = localStorage.getItem(`pending_project_${pendingProjectId}`);
+      if (!pendingData) {
+        throw new Error("Données du projet introuvables. Veuillez recommencer.");
+      }
+
+      const { imageData, imageName, imageType, prompt: savedPrompt } = JSON.parse(pendingData);
+
+      // Convertir l'image base64 en File
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+      const imageFile = new File([blob], imageName, { type: imageType });
+
+      const body = new FormData();
+      body.append("projectId", pendingProjectId);
+      body.append("image", imageFile);
+      body.append("prompt", savedPrompt);
+
+      setStatus("Étape 4/4 — génération IA en cours…");
+      const generateResponse = await fetch("/api/generate", {
+        method: "POST",
+        body,
+        credentials: "include",
+      });
+
+      if (!generateResponse.ok) {
+        const payload = (await generateResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Une erreur est survenue.");
+      }
+
+      const data = (await generateResponse.json()) as { outputUrl: string };
+      setGeneratedUrl(data.outputUrl);
+      setStatus("Génération terminée ✔️");
+      
+      // Nettoyer le localStorage
+      localStorage.removeItem(`pending_project_${pendingProjectId}`);
+      setPendingProjectId(null);
+      
+      await loadProjects();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossible de générer l'image.";
+      setError(message);
+      setStatus("Échec de la génération.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleCopyPrompt(projectId: string, projectPrompt: string | null) {
     if (!projectPrompt) {
       return;
@@ -202,36 +294,67 @@ export default function DashboardPage() {
 
     setLoading(true);
     setError(null);
-    setStatus("Étape 1/3 — préparation de la génération…");
+    setStatus("Étape 1/4 — création du projet…");
     setGeneratedUrl(null);
 
     try {
-      const body = new FormData();
-      body.append("image", file);
-      body.append("prompt", prompt);
+      // Créer un projet en attente de paiement
+      const projectId = crypto.randomUUID();
+      const { error: insertError } = await supabase
+        .from("projects")
+        .insert({
+          id: projectId,
+          input_image_url: "", // Sera rempli après le paiement
+          prompt,
+          status: "pending",
+          user_id: user?.id,
+          payment_status: "pending",
+          payment_amount: 2.0,
+        } as any);
 
-      setStatus("Étape 2/3 — génération IA en cours…");
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        body,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Une erreur est survenue.");
+      if (insertError) {
+        throw new Error(insertError.message);
       }
 
-      setStatus("Étape 3/3 — archivage Supabase…");
-      const data = (await response.json()) as { outputUrl: string };
-      setGeneratedUrl(data.outputUrl);
-      setStatus("Génération terminée ✔️");
-      await loadProjects();
+      setStatus("Étape 2/4 — redirection vers le paiement…");
+
+      // Créer une session de paiement Stripe
+      const checkoutResponse = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!checkoutResponse.ok) {
+        const payload = (await checkoutResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Impossible de créer la session de paiement.");
+      }
+
+      const { url } = (await checkoutResponse.json()) as { url: string };
+
+      // Sauvegarder temporairement l'image et le prompt dans le localStorage
+      // pour pouvoir les récupérer après le retour du paiement
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imageData = reader.result as string;
+        localStorage.setItem(`pending_project_${projectId}`, JSON.stringify({
+          imageData,
+          imageName: file.name,
+          imageType: file.type,
+          prompt,
+        }));
+        
+        // Rediriger vers Stripe Checkout
+        window.location.href = url;
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Impossible de générer l'image.";
+      const message = err instanceof Error ? err.message : "Impossible de créer le projet.";
       setError(message);
-      setStatus("Échec de la génération.");
-    } finally {
+      setStatus("Échec de la création du projet.");
       setLoading(false);
     }
   }
@@ -342,9 +465,20 @@ export default function DashboardPage() {
                 <span className={styles.helperCount}>{promptLength} / 280</span>
               </div>
               <div className={styles.actions}>
-                <button type="submit" disabled={!isReady || loading} className={styles.submit}>
-                  {loading ? "Génération en cours…" : "Générer"}
-                </button>
+                {pendingProjectId ? (
+                  <button 
+                    type="button" 
+                    onClick={handleLaunchGeneration} 
+                    disabled={loading} 
+                    className={styles.submit}
+                  >
+                    {loading ? "Génération en cours…" : "Lancer la génération"}
+                  </button>
+                ) : (
+                  <button type="submit" disabled={!isReady || loading} className={styles.submit}>
+                    {loading ? "Redirection vers le paiement…" : "Générer (2€)"}
+                  </button>
+                )}
                 <button type="button" onClick={handleReset} className={styles.secondary}>
                   Réinitialiser
                 </button>

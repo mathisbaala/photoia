@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
+    const projectId = (formData.get("projectId") ?? "").toString().trim();
     const image = formData.get("image");
     const prompt = (formData.get("prompt") ?? "").toString().trim();
 
@@ -44,6 +45,46 @@ export async function POST(request: Request) {
       );
     }
 
+    // Si un projectId est fourni, vérifier le paiement
+    if (projectId) {
+      const supabaseService = getSupabaseServiceClient();
+      if (!supabaseService) {
+        return NextResponse.json(
+          { error: "Configuration Supabase incomplète côté serveur." },
+          { status: 500 },
+        );
+      }
+
+      const { data: projectData, error: projectError } = await supabaseService
+        .from("projects")
+        .select("*")
+        .eq("id", projectId)
+        .single();
+
+      if (projectError || !projectData) {
+        return NextResponse.json(
+          { error: "Projet introuvable." },
+          { status: 404 },
+        );
+      }
+
+      const project = projectData as Database["public"]["Tables"]["projects"]["Row"];
+
+      if (project.user_id !== user.id) {
+        return NextResponse.json(
+          { error: "Vous n'êtes pas autorisé à générer ce projet." },
+          { status: 403 },
+        );
+      }
+
+      if (project.payment_status !== "paid") {
+        return NextResponse.json(
+          { error: "Le paiement est requis avant de générer l'image." },
+          { status: 402 },
+        );
+      }
+    }
+
     const supabaseService = getSupabaseServiceClient();
     if (!supabaseService) {
       return NextResponse.json(
@@ -54,8 +95,8 @@ export async function POST(request: Request) {
 
     const inputBucket = process.env.SUPABASE_INPUT_BUCKET ?? "input-images";
     const outputBucket = process.env.SUPABASE_OUTPUT_BUCKET ?? "output-images";
-    const projectId = crypto.randomUUID();
-    const inputPath = `raw/${projectId}-${image.name.replace(/\s+/g, "-")}`;
+    const finalProjectId = projectId || crypto.randomUUID();
+    const inputPath = `raw/${finalProjectId}-${image.name.replace(/\s+/g, "-")}`;
 
     const imageBuffer = Buffer.from(await image.arrayBuffer());
     const uploadInput = await supabaseService.storage
@@ -110,7 +151,7 @@ export async function POST(request: Request) {
     }
 
     const generatedBuffer = Buffer.from(await generatedResponse.arrayBuffer());
-    const outputPath = `generated/${projectId}.png`;
+    const outputPath = `generated/${finalProjectId}.png`;
 
     const uploadOutput = await supabaseService.storage
       .from(outputBucket)
@@ -131,21 +172,37 @@ export async function POST(request: Request) {
       throw new Error("Impossible de récupérer l'URL publique de l'image générée.");
     }
 
-    const { error: insertError } = await supabaseTyped
-      .from("projects")
-      .insert([
-        {
-          id: projectId,
-          input_image_url: inputPublic.publicUrl,
+    // Si le projet existe déjà (avec paiement), on le met à jour
+    if (projectId) {
+      const { error: updateError } = await supabaseTyped
+        .from("projects")
+        .update({
           output_image_url: outputPublic.publicUrl,
-          prompt,
           status: "completed",
-          user_id: user.id,
-        } satisfies ProjectInsert,
-      ]);
+        })
+        .eq("id", projectId);
 
-    if (insertError) {
-      throw new Error(insertError.message);
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+    } else {
+      // Sinon, on crée un nouveau projet (ancien comportement)
+      const { error: insertError } = await supabaseTyped
+        .from("projects")
+        .insert([
+          {
+            id: finalProjectId,
+            input_image_url: inputPublic.publicUrl,
+            output_image_url: outputPublic.publicUrl,
+            prompt,
+            status: "completed",
+            user_id: user.id,
+          } satisfies ProjectInsert,
+        ]);
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
     }
 
     return NextResponse.json({ outputUrl: outputPublic.publicUrl });

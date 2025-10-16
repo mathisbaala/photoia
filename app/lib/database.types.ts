@@ -10,6 +10,10 @@ export type Database = {
           prompt: string | null;
           status: string | null;
           user_id: string | null;
+          payment_status: string | null;
+          payment_amount: number | null;
+          stripe_payment_intent_id: string | null;
+          stripe_checkout_session_id: string | null;
         };
         Insert: {
           id?: string;
@@ -19,6 +23,10 @@ export type Database = {
           prompt?: string | null;
           status?: string | null;
           user_id?: string | null;
+          payment_status?: string | null;
+          payment_amount?: number | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_checkout_session_id?: string | null;
         };
         Update: {
           id?: string;
@@ -28,6 +36,10 @@ export type Database = {
           prompt?: string | null;
           status?: string | null;
           user_id?: string | null;
+          payment_status?: string | null;
+          payment_amount?: number | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_checkout_session_id?: string | null;
         };
         Relationships: [
           {
