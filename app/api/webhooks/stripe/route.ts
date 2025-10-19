@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getStripeClient, PRICE_PER_GENERATION_EUR } from "@/lib/stripe";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
+import { 
+  sendEmail, 
+  getPaymentFailedEmailTemplate, 
+  getSubscriptionCanceledEmailTemplate,
+  getPaymentSucceededEmailTemplate 
+} from "@/lib/email";
 import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +21,11 @@ export const runtime = "nodejs";
  * 
  * Configuration du webhook dans Stripe Dashboard :
  * - URL: https://votre-domaine.com/api/webhooks/stripe
- * - Événements à écouter: checkout.session.completed
+ * - Événements à écouter: 
+ *   - checkout.session.completed
+ *   - payment_intent.payment_failed
+ *   - payment_intent.succeeded
+ *   - customer.subscription.deleted
  * 
  * Pour le développement local, utilisez Stripe CLI :
  * stripe listen --forward-to localhost:3000/api/webhooks/stripe
@@ -61,10 +71,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Traiter l'événement
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-      await handleCheckoutSessionCompleted(session);
+    // Traiter les différents événements
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+      
+      case "payment_intent.succeeded":
+        await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
+      
+      case "payment_intent.payment_failed":
+        await handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
+      
+      case "customer.subscription.deleted":
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+      
+      default:
+        console.log(`Événement non géré: ${event.type}`);
     }
 
     // Retourner une réponse de succès
@@ -84,8 +110,9 @@ export async function POST(request: Request) {
  */
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   const projectId = session.metadata?.project_id;
+  const paymentType = session.metadata?.payment_type || "generation";
 
-  if (!projectId) {
+  if (!projectId && paymentType !== "credits") {
     console.error("project_id manquant dans les metadata de la session:", session.id);
     return;
   }
@@ -97,25 +124,235 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   try {
-    // Mettre à jour le projet avec le statut de paiement
+    // Si c'est un achat de crédits
+    if (paymentType === "credits") {
+      const userId = session.metadata?.user_id;
+      const creditsPurchased = parseInt(session.metadata?.credits_purchased || "0");
+      
+      if (!userId || !creditsPurchased) {
+        console.error("user_id ou credits_purchased manquant");
+        return;
+      }
+
+      // Ajouter les crédits à l'utilisateur
+      const { data: existingCredits } = await supabaseService
+        .from("credits")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (existingCredits) {
+        await supabaseService
+          .from("credits")
+          .update({
+            credits_remaining: existingCredits.credits_remaining + creditsPurchased,
+            total_purchased: existingCredits.total_purchased + creditsPurchased,
+          })
+          .eq("user_id", userId);
+      } else {
+        await supabaseService
+          .from("credits")
+          .insert({
+            user_id: userId,
+            credits_remaining: creditsPurchased,
+            total_purchased: creditsPurchased,
+          });
+      }
+
+      console.log(`✅ ${creditsPurchased} crédits ajoutés pour l'utilisateur ${userId}`);
+    } 
+    // Si c'est une génération unique
+    else if (projectId) {
+      await supabaseService
+        .from("projects")
+        .update({
+          payment_status: "paid",
+          stripe_checkout_session_id: session.id,
+          stripe_payment_intent_id: session.payment_intent as string | null,
+          payment_amount: PRICE_PER_GENERATION_EUR,
+          status: "pending",
+        })
+        .eq("id", projectId);
+
+      console.log(`✅ Paiement confirmé pour le projet ${projectId}`);
+    }
+  } catch (error) {
+    console.error("Erreur lors du traitement du paiement:", error);
+  }
+}
+
+/**
+ * Traite l'événement payment_intent.succeeded
+ * Enregistre le paiement dans l'historique
+ */
+async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  const supabaseService = getSupabaseServiceClient();
+  if (!supabaseService) {
+    console.error("Configuration Supabase incomplète côté serveur.");
+    return;
+  }
+
+  try {
+    const stripe = getStripeClient();
+    
+    // Récupérer les charges pour obtenir le receipt_url
+    let receiptUrl: string | null = null;
+    if (paymentIntent.latest_charge) {
+      const charge = await stripe.charges.retrieve(paymentIntent.latest_charge as string);
+      receiptUrl = charge.receipt_url;
+    }
+
+    // Enregistrer le paiement dans l'historique
     const { error } = await supabaseService
-      .from("projects")
-      .update({
-        payment_status: "paid",
-        stripe_checkout_session_id: session.id,
-        stripe_payment_intent_id: session.payment_intent as string | null,
-        payment_amount: PRICE_PER_GENERATION_EUR,
-        status: "pending", // Le projet est prêt à être généré
-      })
-      .eq("id", projectId);
+      .from("payments")
+      .upsert({
+        stripe_payment_intent_id: paymentIntent.id,
+        user_id: paymentIntent.metadata.user_id,
+        stripe_customer_id: paymentIntent.customer as string | null,
+        amount: paymentIntent.amount / 100,
+        currency: paymentIntent.currency,
+        status: "succeeded",
+        payment_method: paymentIntent.payment_method_types[0],
+        description: paymentIntent.description || "Paiement PhotoIA",
+        receipt_url: receiptUrl,
+        payment_type: paymentIntent.metadata.payment_type || "generation",
+        credits_purchased: parseInt(paymentIntent.metadata.credits_purchased || "0"),
+        metadata: paymentIntent.metadata,
+      }, {
+        onConflict: "stripe_payment_intent_id",
+      });
 
     if (error) {
-      console.error("Erreur lors de la mise à jour du projet après paiement:", error);
+      console.error("Erreur lors de l'enregistrement du paiement:", error);
       return;
     }
 
-    console.log(`✅ Paiement confirmé pour le projet ${projectId}`);
+    // Récupérer l'email de l'utilisateur
+    const { data: userData } = await supabaseService.auth.admin.getUserById(
+      paymentIntent.metadata.user_id
+    );
+
+    if (userData?.user?.email) {
+      await sendEmail({
+        to: userData.user.email,
+        subject: "✅ Paiement confirmé - PhotoIA",
+        html: getPaymentSucceededEmailTemplate(
+          userData.user.email.split("@")[0],
+          paymentIntent.amount / 100,
+          receiptUrl || undefined
+        ),
+      });
+    }
+
+    console.log(`✅ Paiement enregistré: ${paymentIntent.id}`);
   } catch (error) {
-    console.error("Erreur lors du traitement du paiement:", error);
+    console.error("Erreur lors du traitement du succès de paiement:", error);
+  }
+}
+
+/**
+ * Traite l'événement payment_intent.payment_failed
+ * Envoie un email à l'utilisateur
+ */
+async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  const supabaseService = getSupabaseServiceClient();
+  if (!supabaseService) {
+    console.error("Configuration Supabase incomplète côté serveur.");
+    return;
+  }
+
+  try {
+    // Enregistrer l'échec dans l'historique
+    await supabaseService
+      .from("payments")
+      .upsert({
+        stripe_payment_intent_id: paymentIntent.id,
+        user_id: paymentIntent.metadata.user_id,
+        stripe_customer_id: paymentIntent.customer as string | null,
+        amount: paymentIntent.amount / 100,
+        currency: paymentIntent.currency,
+        status: "failed",
+        payment_method: paymentIntent.payment_method_types[0],
+        description: paymentIntent.description || "Paiement PhotoIA",
+        payment_type: paymentIntent.metadata.payment_type || "generation",
+        metadata: paymentIntent.metadata,
+      }, {
+        onConflict: "stripe_payment_intent_id",
+      });
+
+    // Récupérer l'email de l'utilisateur
+    const { data: userData } = await supabaseService.auth.admin.getUserById(
+      paymentIntent.metadata.user_id
+    );
+
+    if (userData?.user?.email) {
+      const failureReason = paymentIntent.last_payment_error?.message || "Carte refusée";
+      
+      await sendEmail({
+        to: userData.user.email,
+        subject: "❌ Échec du paiement - PhotoIA",
+        html: getPaymentFailedEmailTemplate(
+          userData.user.email.split("@")[0],
+          paymentIntent.amount / 100,
+          failureReason
+        ),
+      });
+    }
+
+    console.log(`❌ Paiement échoué: ${paymentIntent.id}`);
+  } catch (error) {
+    console.error("Erreur lors du traitement de l'échec de paiement:", error);
+  }
+}
+
+/**
+ * Traite l'événement customer.subscription.deleted
+ * Envoie un email de confirmation d'annulation
+ */
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const supabaseService = getSupabaseServiceClient();
+  if (!supabaseService) {
+    console.error("Configuration Supabase incomplète côté serveur.");
+    return;
+  }
+
+  try {
+    const stripe = getStripeClient();
+    
+    // Récupérer les infos du customer
+    const customer = await stripe.customers.retrieve(subscription.customer as string);
+    
+    if (customer.deleted) {
+      console.log("Customer supprimé, impossible d'envoyer l'email");
+      return;
+    }
+
+    const email = customer.email;
+    if (!email) {
+      console.log("Pas d'email pour ce customer");
+      return;
+    }
+
+    // Formater la date de fin
+    const subscriptionData = subscription as any; // Type fix for subscription
+    const endDate = new Date(subscriptionData.current_period_end * 1000);
+    const formattedDate = endDate.toLocaleDateString("fr-FR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    await sendEmail({
+      to: email,
+      subject: "✅ Annulation d'abonnement confirmée - PhotoIA",
+      html: getSubscriptionCanceledEmailTemplate(
+        email.split("@")[0],
+        formattedDate
+      ),
+    });
+
+    console.log(`✅ Email d'annulation envoyé à ${email}`);
+  } catch (error) {
+    console.error("Erreur lors du traitement de l'annulation d'abonnement:", error);
   }
 }

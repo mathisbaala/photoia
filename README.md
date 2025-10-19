@@ -1,34 +1,242 @@
-# VisionCraft Studio (PhotoIA) 📸✨
+# PhotoIA v2.1 📸✨
 
 ![CI badge](https://github.com/mathisbaala/photoia/actions/workflows/ci.yml/badge.svg)
+![Version](https://img.shields.io/badge/version-2.1-blue)
+![Status](https://img.shields.io/badge/status-production--ready-green)
 
-Éditeur d'images propulsé par l'IA, construit avec **Next.js 15**, **TypeScript**, **Supabase**, **Replicate** et **Stripe**. Téléversez une photo, décrivez la transformation désirée, payez 2€ et laissez l'IA générer un visuel cohérent. Les originaux comme les rendus finaux sont historisés dans Supabase pour suivre chaque itération.
+**Plateforme de génération d'images IA professionnelle** avec système de crédits, modèles multiples et paiements Stripe.
 
-## ✨ Nouveautés (Octobre 2025)
+Construite avec **Next.js 15**, **TypeScript**, **Supabase**, **Replicate** et **Stripe**. Interface moderne, fluide et responsive avec un design system complet.
 
-🎉 **Paiement Stripe intégré** : Système de paiement à la génération (2€ par image)
-- Stripe Checkout avec webhooks sécurisés
-- Vérification du paiement avant génération
-- Historique complet dans Supabase
-- Documentation complète dans `STRIPE_SETUP.md`
+---
 
-## Sommaire
-- [Fonctionnalités principales](#fonctionnalités-principales)
-- [Stack technique](#stack-technique)
-- [Démarrage rapide](#démarrage-rapide)
-- [Variables d'environnement](#variables-denvironnement)
+## 🎉 Version 2.1 - Octobre 2025
+
+### ✨ Nouveautés majeures
+
+**🎨 Design System Complet (19 composants)**
+- Phase 1 : Features business (crédits, paiements, analytics)
+- Phase 2 : UI professionnelle (7 composants)
+- Phase 3 : Design system (6 composants réutilisables)
+
+**💳 Système de Crédits Flexible**
+- 3 packs de crédits (10, 25, 50)
+- Stripe Checkout intégré
+- Webhooks sécurisés
+- Emails automatiques
+
+**🤖 3 Modèles IA avec Pricing Dynamique**
+- Basic (2€), Pro (3€), Expert (5€)
+- Sélecteur de modèle interactif
+- Descriptions détaillées
+
+**📊 Dashboard Admin Complet**
+- Analytics de revenus
+- Métriques de conversion
+- Historique des paiements
+
+---
+
+## 📚 Documentation Complète
+
+> **🚀 Nouveau sur le projet ?** Commencez par [`CHECKLIST_ACTIONS_REQUISES.md`](./CHECKLIST_ACTIONS_REQUISES.md)
+
+| Document | Description | Priorité |
+|----------|-------------|----------|
+| **[CHECKLIST_ACTIONS_REQUISES.md](./CHECKLIST_ACTIONS_REQUISES.md)** | Ce qu'il faut faire MAINTENANT (45 min) | 🔴 URGENT |
+| **[SETUP_COMPLET_SERVICES.md](./SETUP_COMPLET_SERVICES.md)** | Configuration complète des services externes | 🔴 URGENT |
+| **[QUEST_CE_QUI_MANQUE.md](./QUEST_CE_QUI_MANQUE.md)** | État actuel et prochaines étapes | 🔴 URGENT |
+| [LIVRAISON_COMPLETE_V2.1.md](./LIVRAISON_COMPLETE_V2.1.md) | Résumé final du projet | 🟡 Important |
+| [INDEX_DOCUMENTATION_V2.1.md](./INDEX_DOCUMENTATION_V2.1.md) | Index complet de toute la doc | 🟡 Important |
+| [ROADMAP_COMPLETE.md](./ROADMAP_COMPLETE.md) | Timeline et métriques du projet | ⚪ Lecture |
+
+**15 documents disponibles** avec guides, exemples et troubleshooting complets.
+
+---
+**15 documents disponibles** avec guides, exemples et troubleshooting complets.
+
+---
+
+## 📋 Table des Matières
+
+- [Fonctionnalités Principales](#fonctionnalités-principales)
+- [Stack Technique](#stack-technique)
+- [Démarrage Rapide](#démarrage-rapide)
+- [Configuration Complète](#configuration-complète)
 - [Scripts npm](#scripts-npm)
-- [Structure du projet](#structure-du-projet)
-- [Paiement Stripe](#paiement-stripe)
-- [Flux GitHub & CI/CD](#flux-github--cicd)
+- [Structure du Projet](#structure-du-projet)
+- [Design System](#design-system)
+- [Tests](#tests)
 - [Déploiement](#déploiement)
-- [Sécurité & bonnes pratiques](#sécurité--bonnes-pratiques)
-- [Roadmap](#roadmap)
+- [FAQ](#faq)
 
-## Fonctionnalités principales
-- 💳 **Paiement sécurisé** : Intégration Stripe avec modèle "pay-per-generation" (2€)
-- 🔐 **Authentification** : Supabase Auth avec protection des routes
-- 📤 **Téléversement sécurisé** : Supabase Storage (buckets `input-images` et `output-images`)
+---
+
+## ✨ Fonctionnalités Principales
+
+### 💳 Système de Crédits
+- **3 packs** : 10 crédits (10€), 25 crédits (24€), 50 crédits (45€)
+- **Stripe Checkout** : Paiement sécurisé avec carte
+- **Webhooks** : Ajout automatique des crédits
+- **Historique complet** : Tous les paiements tracés
+- **Widget temps réel** : Affichage des crédits restants
+
+### 🤖 Génération IA Multi-Modèles
+- **Basic (2€/image)** : `google/nano-banana` - Rapide et économique
+- **Pro (3€/image)** : `batouresearch/magic-image-refiner` - Qualité supérieure
+- **Expert (5€/image)** : `zsxkib/qwen2-vl` - Meilleure qualité possible
+- **Sélecteur interactif** : Cartes expandables avec descriptions
+- **Pricing dynamique** : Débité automatiquement des crédits
+
+### 📊 Dashboard Admin
+- **Analytics de revenus** : Total, par période, taux de conversion
+- **Métriques détaillées** : Nombre de transactions, montant moyen
+- **Répartition** : Par type de pack, graphiques visuels
+- **Historique** : Liste complète des paiements avec filtres
+
+### 🎨 Interface Moderne
+- **19 composants UI** : Navigation, Toasts, Modals, Cards, Badges...
+- **8 animations CSS** : Smooth et optimisées GPU
+- **Design system complet** : Couleurs, variantes, tailles cohérentes
+- **Fully responsive** : Mobile, tablette, desktop
+- **Dark mode ready** : Architecture préparée
+
+### � Sécurité
+- **Authentification Supabase** : Email/password avec session
+- **RLS policies** : Accès base de données sécurisé
+- **Webhooks signés** : Vérification Stripe signature
+- **Service role key** : Jamais exposée côté client
+- **CORS configuré** : Protection contre les requêtes malveillantes
+
+---
+
+## 🛠 Stack Technique
+
+### Frontend
+```
+├─ Next.js 15 .................. App Router, RSC, Server Actions
+├─ React 18 .................... Server & Client Components
+├─ TypeScript .................. Strict mode, types complets
+├─ Tailwind CSS ................ Utility-first styling
+└─ CSS Animations .............. 8 keyframes optimisées GPU
+```
+
+### Backend
+```
+├─ Next.js API Routes .......... 6 endpoints sécurisés
+├─ Supabase PostgreSQL ......... Base de données relationnelle
+├─ Supabase Auth ............... Authentification complète
+├─ Supabase Storage ............ Stockage d'images sécurisé
+└─ Stripe API .................. Paiements & webhooks
+```
+
+### Services Externes
+```
+├─ Replicate API ............... 3 modèles IA configurés
+├─ Stripe Checkout ............. Paiement sécurisé
+├─ SendGrid .................... Emails transactionnels (opt.)
+└─ Vercel ...................... Hébergement & déploiement
+```
+
+---
+
+## 🚀 Démarrage Rapide
+
+### Prérequis
+- Node.js 18+ et npm
+- Compte Supabase (gratuit)
+- Compte Stripe (mode test gratuit)
+- Compte Replicate (pay-as-you-go)
+
+### Installation (5 minutes)
+
+```bash
+# 1. Cloner le projet
+git clone https://github.com/mathisbaala/photoia.git
+cd photoia
+
+# 2. Installer les dépendances
+npm install
+
+# 3. Configurer les variables d'environnement
+cp .env.example .env.local
+# Éditer .env.local avec vos clés
+
+# 4. Lancer le serveur de développement
+npm run dev
+```
+
+Ouvrir http://localhost:3000
+
+### ⚠️ Configuration Requise
+
+**Avant que tout fonctionne**, vous devez :
+
+1. **Régénérer les types Supabase** (5 min)
+```bash
+npx supabase gen types typescript \
+  --project-id VOTRE_PROJECT_ID \
+  > app/lib/database.types.ts
+```
+
+2. **Configurer les webhooks Stripe** (5 min)
+```bash
+# Terminal 1
+npm run dev
+
+# Terminal 2
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+3. **Exécuter les migrations SQL** (2 min)
+   - Dans Supabase SQL Editor
+   - Exécuter `migrations/003_create_credits_table.sql`
+   - Exécuter `migrations/004_create_payments_table.sql`
+
+📖 **Guide détaillé** : [`CHECKLIST_ACTIONS_REQUISES.md`](./CHECKLIST_ACTIONS_REQUISES.md)
+
+---
+
+## ⚙️ Configuration Complète
+
+### Variables d'Environnement
+
+Créer `.env.local` à la racine :
+
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Stripe (Mode Test)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51xxxxx
+STRIPE_SECRET_KEY=sk_test_51xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+
+# Replicate
+REPLICATE_API_TOKEN=r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# SendGrid (Optionnel)
+SENDGRID_API_KEY=
+SENDGRID_FROM_EMAIL=
+```
+
+### Configuration des Services
+
+| Service | Guide | Temps |
+|---------|-------|-------|
+| Supabase | [`SETUP_COMPLET_SERVICES.md`](./SETUP_COMPLET_SERVICES.md) (Section 1) | 15 min |
+| Stripe | [`SETUP_COMPLET_SERVICES.md`](./SETUP_COMPLET_SERVICES.md) (Section 2) | 10 min |
+| Replicate | [`SETUP_COMPLET_SERVICES.md`](./SETUP_COMPLET_SERVICES.md) (Section 3) | 5 min |
+| Vercel | [`SETUP_COMPLET_SERVICES.md`](./SETUP_COMPLET_SERVICES.md) (Section 4) | 15 min |
+
+**Total : 45 minutes de configuration**
+
+---
 - 🎨 **Génération IA** : Modèle Replicate `google/nano-banana`
 - 📊 **Historisation** : Prompts, statuts, URLs et paiements dans la table `projects`
 - ✨ **UI moderne** : Dropzone animée, compteur de prompt, téléchargements directs

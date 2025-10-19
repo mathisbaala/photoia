@@ -1,0 +1,17 @@
+# Documentation
+*.md
+!README.md
+
+# Migrations
+migrations/
+
+# Local env files
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

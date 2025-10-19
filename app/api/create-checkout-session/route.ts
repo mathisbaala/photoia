@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getStripeClient, PRICE_PER_GENERATION, PRICE_PER_GENERATION_EUR } from "@/lib/stripe";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
 import { supabaseRoute } from "@/lib/supabase-route";
+import { getModelById, getDefaultModel } from "@/lib/ai-models";
 import type { Database } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const runtime = "nodejs";
  * Crée une session Stripe Checkout pour un projet existant.
  * Le projet doit avoir été créé au préalable avec payment_status='pending'.
  * 
- * Body: { projectId: string }
+ * Body: { projectId: string, modelId?: string }
  */
 export async function POST(request: Request) {
   try {
@@ -31,13 +32,24 @@ export async function POST(request: Request) {
       );
     }
 
-    // Récupérer le projectId
+    // Récupérer le projectId et le modelId
     const body = await request.json();
-    const { projectId } = body;
+    const { projectId, modelId } = body;
 
     if (!projectId) {
       return NextResponse.json(
         { error: "Le projectId est requis." },
+        { status: 400 },
+      );
+    }
+
+    // Récupérer les informations du modèle IA
+    const selectedModelId = modelId || getDefaultModel();
+    const model = getModelById(selectedModelId);
+    
+    if (!model) {
+      return NextResponse.json(
+        { error: "Modèle IA invalide." },
         { status: 400 },
       );
     }
@@ -94,10 +106,10 @@ export async function POST(request: Request) {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Génération d'image IA",
-              description: "Transformation d'image par intelligence artificielle",
+              name: `Génération d'image IA - ${model.name}`,
+              description: `${model.description} (${model.provider})`,
             },
-            unit_amount: PRICE_PER_GENERATION,
+            unit_amount: model.priceInCents,
           },
           quantity: 1,
         },
@@ -107,17 +119,19 @@ export async function POST(request: Request) {
       metadata: {
         project_id: projectId,
         user_id: user.id,
+        payment_type: "generation",
+        model_id: model.id,
       },
       client_reference_id: user.id,
     });
 
-    // Mettre à jour le projet avec l'ID de la session
+    // Mettre à jour le projet avec l'ID de la session et le modèle
     await supabaseService
       .from("projects")
       .update({
         stripe_checkout_session_id: session.id,
         payment_status: "pending",
-        payment_amount: PRICE_PER_GENERATION_EUR,
+        payment_amount: model.price,
       })
       .eq("id", projectId);
 
