@@ -1,749 +1,448 @@
 "use client";
 
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
-import {
-  ChangeEvent,
-  DragEvent,
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { AccentPill } from "@/components/AccentPill";
-import { GithubCallout } from "@/components/GithubCallout";
-import { PreviewImage, PreviewPanel, PreviewPlaceholder } from "@/components/PreviewPanel";
-import { UploadCloudIcon } from "@/components/icons";
-import { useAuth } from "@/context/AuthContext";
-import type { Database } from "@/lib/database.types";
-import Navigation from "@/components/Navigation";
-import CreditsWidget from "@/components/CreditsWidget";
-import ModelSelector from "@/components/ModelSelector";
-import BuyCreditsModal from "@/components/BuyCreditsModal";
-import PageLoader from "@/components/PageLoader";
-import { useToast, ToastContainer } from "@/components/Toast";
-import { getDefaultModel } from "@/lib/ai-models";
 import styles from "./page.module.css";
 
-type Project = Database["public"]["Tables"]["projects"]["Row"];
+interface Project {
+  id: string;
+  name?: string;
+  status: "completed" | "processing" | "pending" | "paid";
+  input_image_url: string;
+  output_image_url?: string;
+  prompt: string;
+  model_id: string;
+  created_at: string;
+  amount?: number;
+}
 
-const DEFAULT_PROMPT = "Rends l'image plus lumineuse et ajoute un style aquarelle";
+type TabType = "generate" | "projects";
 
-export default function DashboardPage() {
-  const { supabase, user, loading: authLoading } = useAuth();
-  const { addToast, success, error: toastError, toasts, removeToast } = useToast();
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [file, setFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [isDragging, setDragging] = useState(false);
+  // UI State
+  const [activeTab, setActiveTab] = useState<TabType>("generate");
+
+  // Projects
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
-  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(getDefaultModel());
-  const [showBuyCreditsModal, setShowBuyCreditsModal] = useState(false);
-  const [credits, setCredits] = useState<number>(0);
 
-  const promptLength = prompt.trim().length;
-  const isReady = Boolean(file && promptLength > 3);
+  // Generate Form State
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
+  
+  // Loading/Error States
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Projects State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
-  // Charger les crédits de l'utilisateur
+  // Fetch Projects
+  const fetchProjects = useCallback(async () => {
+    try {
+      setIsLoadingProjects(true);
+      const response = await fetch("/api/projects");
+      if (!response.ok) throw new Error("Failed to fetch projects");
+      const data = await response.json();
+      setProjects(data.projects || []);
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }, []);
+
+  // Initial Load
   useEffect(() => {
-    async function loadCredits() {
-      if (!user) return;
+    fetchProjects();
+  }, [fetchProjects]);
+
+  // Handle Payment Success
+  useEffect(() => {
+    const sessionId = searchParams.get("session_id");
+    const pendingProjectId = searchParams.get("pending_project");
+    
+    if (sessionId && pendingProjectId) {
+      // Paiement réussi, générer l'image
+      router.replace("/dashboard");
+      setTimeout(() => handleGenerateAfterPayment(pendingProjectId), 1000);
+    }
+  }, [searchParams]);
+
+  // Générer après paiement réussi
+  const handleGenerateAfterPayment = async (projectId: string) => {
+    try {
+      setIsLoading(true);
       
-      try {
-        const response = await fetch("/api/credits", {
-          credentials: "include",
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setCredits(data.credits || 0);
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement des crédits:", error);
-      }
-    }
-    
-    loadCredits();
-  }, [user]);
-
-  // Vérifier si on revient d'un paiement réussi
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get("session_id");
-    
-    if (sessionId && user) {
-      // Vérifier si on a un projet en attente avec ce session_id
-      checkPendingProject(sessionId);
-    }
-  }, [user]);
-
-  async function checkPendingProject(sessionId: string) {
-    try {
-      const { data: projects } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("stripe_checkout_session_id", sessionId)
-        .eq("payment_status", "paid");
-
-      if (projects && projects.length > 0) {
-        const project = projects[0] as Project;
-        setPendingProjectId(project.id);
-        success("✅ Paiement confirmé ! Vous pouvez maintenant lancer la génération.");
-        
-        // Nettoyer l'URL
-        window.history.replaceState({}, "", "/dashboard");
-      }
-    } catch (error) {
-      console.error("Erreur lors de la vérification du projet:", error);
-      toastError("Erreur lors de la vérification du paiement");
-    }
-  }
-
-  const loadProjects = useCallback(async () => {
-    if (!user) {
-      setProjects(() => []);
-      setProjectsLoading(false);
-      return;
-    }
-
-    setProjectsLoading(true);
-    setProjectsError(null);
-
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Erreur lors du chargement des projets Supabase", error);
-      setProjectsError("Impossible de charger vos projets Supabase pour le moment.");
-      setProjects(() => []);
-    } else {
-      setProjects(() => (data ?? []) as Project[]);
-    }
-
-    setProjectsLoading(false);
-  }, [supabase, user]);
-
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  useEffect(() => {
-    if (!copiedPromptId) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => setCopiedPromptId(null), 2200);
-    return () => window.clearTimeout(timeout);
-  }, [copiedPromptId]);
-
-  const filteredProjects = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
-      return projects;
-    }
-    return projects.filter((project) => project.prompt?.toLowerCase().includes(query));
-  }, [projects, searchTerm]);
-
-  const totalProjects = projects.length;
-  const filteredCount = filteredProjects.length;
-  const hasActiveFilter = Boolean(searchTerm.trim());
-  const skeletonCount = Math.min(Math.max(totalProjects || 3, 3), 6);
-
-  const dropzoneClassName = useMemo(
-    () =>
-      [
-        styles.dropzone,
-        isDragging ? styles.dropzoneActive : "",
-        file ? styles.dropzoneFilled : "",
-      ]
-        .filter(Boolean)
-        .join(" "),
-    [file, isDragging],
-  );
-
-  function resetFeedback() {
-    setGeneratedUrl(null);
-    setStatus("");
-    setError(null);
-  }
-
-  function loadFile(selected: File | null) {
-    if (!selected) {
-      setFile(null);
-      setPreview(null);
-      resetFeedback();
-      return;
-    }
-
-    setFile(selected);
-    resetFeedback();
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreview(typeof reader.result === "string" ? reader.result : null);
-    };
-    reader.readAsDataURL(selected);
-  }
-
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0] ?? null;
-    loadFile(selected);
-  }
-
-  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    if (!isDragging) {
-      setDragging(true);
-    }
-  }
-
-  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    const nextTarget = event.relatedTarget as Node | null;
-    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
-      setDragging(false);
-    }
-  }
-
-  function handleDrop(event: DragEvent<HTMLLabelElement>) {
-    event.preventDefault();
-    setDragging(false);
-    const dropped = event.dataTransfer.files?.[0] ?? null;
-    loadFile(dropped);
-  }
-
-  function handleReset() {
-    setFile(null);
-    setPreview(null);
-    setPrompt(DEFAULT_PROMPT);
-    resetFeedback();
-  }
-
-  function handleReusePrompt(nextPrompt: string | null) {
-    if (!nextPrompt) {
-      return;
-    }
-
-    setPrompt(nextPrompt);
-    setStatus("Prompt prêt à être regénéré ✨");
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }
-
-  async function handleLaunchGeneration() {
-    if (!pendingProjectId || loading) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setStatus("Étape 3/4 — récupération des données…");
-    setGeneratedUrl(null);
-
-    try {
-      // Récupérer l'image et le prompt du localStorage
-      const pendingData = localStorage.getItem(`pending_project_${pendingProjectId}`);
-      if (!pendingData) {
-        throw new Error("Données du projet introuvables. Veuillez recommencer.");
-      }
-
-      const { imageData, imageName, imageType, prompt: savedPrompt } = JSON.parse(pendingData);
-
-      // Convertir l'image base64 en File
-      const response = await fetch(imageData);
-      const blob = await response.blob();
-      const imageFile = new File([blob], imageName, { type: imageType });
-
-      const body = new FormData();
-      body.append("projectId", pendingProjectId);
-      body.append("image", imageFile);
-      body.append("prompt", savedPrompt);
-
-      setStatus("Étape 4/4 — génération IA en cours…");
       const generateResponse = await fetch("/api/generate", {
         method: "POST",
-        body,
-        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
       });
 
       if (!generateResponse.ok) {
-        const payload = (await generateResponse.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Une erreur est survenue.");
+        const errorData = await generateResponse.json();
+        throw new Error(errorData.error || "Generation failed");
       }
 
-      const data = (await generateResponse.json()) as { outputUrl: string };
-      setGeneratedUrl(data.outputUrl);
-      setStatus("Génération terminée ✔️");
-      success("✨ Image générée avec succès !");
-      
-      // Nettoyer le localStorage
-      localStorage.removeItem(`pending_project_${pendingProjectId}`);
-      setPendingProjectId(null);
-      
-      await loadProjects();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Impossible de générer l'image.";
-      setError(message);
-      setStatus("Échec de la génération.");
-      toastError(message);
+      await fetchProjects();
+      setActiveTab("projects");
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la génération");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  };
 
-  async function handleCopyPrompt(projectId: string, projectPrompt: string | null) {
-    if (!projectPrompt) {
-      return;
-    }
+  // File Upload Handler
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
 
-    try {
-      setProjectsError(null);
-      await navigator.clipboard.writeText(projectPrompt);
-      success("Prompt copié dans le presse-papiers ✅");
-      setCopiedPromptId(projectId);
-    } catch (copyError) {
-      console.error("Erreur lors de la copie du prompt", copyError);
-      toastError("Impossible de copier le prompt sur cet appareil.");
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!file || !isReady || loading) {
-      return;
-    }
-
-    setLoading(true);
+    setFile(selectedFile);
+    const reader = new FileReader();
+    reader.onloadend = () => setFilePreview(reader.result as string);
+    reader.readAsDataURL(selectedFile);
     setError(null);
-    setStatus("Étape 1/4 — création du projet…");
-    setGeneratedUrl(null);
+  }, []);
+
+  // Créer projet et rediriger vers paiement Stripe
+  const handleCreateAndPay = async () => {
+    if (!file || !prompt.trim()) {
+      setError("Veuillez sélectionner une image et entrer un prompt");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
 
     try {
-      // Créer un projet en attente de paiement
-      const projectId = crypto.randomUUID();
-      const { error: insertError } = await supabase
-        .from("projects")
-        .insert({
-          id: projectId,
-          input_image_url: "", // Sera rempli après le paiement
-          prompt,
-          status: "pending",
-          user_id: user?.id,
-          payment_status: "pending",
-          payment_amount: 2.0,
-        } as any);
+      // Créer le projet
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("prompt", prompt);
+      formData.append("model_id", "batouresearch/magic-image-refiner");
 
-      if (insertError) {
-        throw new Error(insertError.message);
+      const createResponse = await fetch("/api/projects", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        throw new Error(errorData.error || "Failed to create project");
       }
 
-      setStatus("Étape 2/4 — redirection vers le paiement…");
+      const { project } = await createResponse.json();
 
-      // Créer une session de paiement Stripe
+      // Créer la session de paiement Stripe
       const checkoutResponse = await fetch("/api/create-checkout-session", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ projectId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          modelId: "batouresearch/magic-image-refiner",
+        }),
       });
 
       if (!checkoutResponse.ok) {
-        const payload = (await checkoutResponse.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Impossible de créer la session de paiement.");
+        throw new Error("Failed to create checkout session");
       }
 
-      const { url } = (await checkoutResponse.json()) as { url: string };
-
-      // Sauvegarder temporairement l'image et le prompt dans le localStorage
-      // pour pouvoir les récupérer après le retour du paiement
-      const reader = new FileReader();
-      reader.onload = () => {
-        const imageData = reader.result as string;
-        localStorage.setItem(`pending_project_${projectId}`, JSON.stringify({
-          imageData,
-          imageName: file.name,
-          imageType: file.type,
-          prompt,
-        }));
-        
-        // Rediriger vers Stripe Checkout
-        window.location.href = url;
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Impossible de créer le projet.";
-      setError(message);
-      setStatus("Échec de la création du projet.");
-      setLoading(false);
+      const { url } = await checkoutResponse.json();
+      
+      // Rediriger vers Stripe
+      window.location.href = url;
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue");
+      setIsLoading(false);
     }
-  }
+  };
 
-  async function handleDelete(projectId: string) {
-    setDeletingId(projectId);
-    setProjectsError(null);
+  // Delete Project
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm("Supprimer ce projet ?")) return;
 
     try {
-      const response = await fetch("/api/delete", {
+      const response = await fetch(`/api/projects?id=${projectId}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ projectId }),
       });
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Impossible de supprimer ce projet.");
-      }
-
-      setProjects((previous) => previous.filter((project) => project.id !== projectId));
-      success("Projet supprimé avec succès ✔️");
+      if (!response.ok) throw new Error("Failed to delete project");
+      await fetchProjects();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "La suppression du projet a échoué.";
-      setProjectsError(message);
-      toastError(message);
-    } finally {
-      setDeletingId(null);
+      console.error("Error deleting project:", err);
+      alert("Erreur lors de la suppression");
     }
-  }
+  };
 
-  if (authLoading) {
-    return <PageLoader message="Chargement de votre espace sécurisé..." />;
-  }
-
-  if (!user) {
-    return (
-      <main className={styles.main}>
-        <section className={styles.container}>
-          <p>
-            Vous devez être connecté pour accéder à ce contenu.{" "}
-            <Link href="/login">Retour à la connexion</Link>
-          </p>
-        </section>
-      </main>
-    );
-  }
+  // Filter Projects
+  const filteredProjects = projects.filter((project) =>
+    project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.prompt?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <>
-      <Navigation />
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-      
-      <main className={styles.main}>
-        <section className={styles.container}>
-          {/* Widget de crédits en haut à droite */}
-          <div className="fixed top-20 right-6 z-40">
-            <CreditsWidget onBuyClick={() => setShowBuyCreditsModal(true)} />
+    <main className={styles.main}>
+      <div className={styles.container}>
+        {/* Hero */}
+        <div className={styles.hero}>
+          <div className={styles.welcomeBadge}>
+            ✨ Générez vos images IA
           </div>
-
-          <header className={styles.hero}>
-            <AccentPill>Bienvenue {user.email}</AccentPill>
-            <h1 className={styles.title}>Créez, versionnez et partagez vos images IA.</h1>
-            <p className={styles.subtitle}>
-              Téléversez un visuel, décrivez la transformation désirée et retrouvez toutes vos
-              productions dans votre espace personnel. Chaque projet est isolé grâce à Supabase.
+          <h1 className={styles.title}>
+            Dashboard
+          </h1>
+          <p className={styles.subtitle}>
+            Créez des images incroyables avec l'intelligence artificielle
             </p>
-          </header>
+          </div>
 
-          {/* Sélecteur de modèle IA */}
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-          />
-
-          <form onSubmit={handleSubmit} className={styles.formCard} noValidate>
-          <div className={styles.formGrid}>
-            <label
-              className={dropzoneClassName}
-              htmlFor="image-upload"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+          {/* Tabs Navigation */}
+          <div className={styles.tabs}>
+            <button
+              className={`${styles.tab} ${activeTab === "generate" ? styles.active : ""}`}
+              onClick={() => setActiveTab("generate")}
             >
-              <input
-                id="image-upload"
-                type="file"
-                accept="image/*"
-                className={styles.hiddenInput}
-                onChange={handleFileChange}
-              />
-              <UploadCloudIcon className={styles.dropzoneIcon} />
-              <span className={styles.dropzoneText}>
-                {file ? file.name : "Glissez-déposez ou sélectionnez une image"}
-              </span>
-              <span className={styles.dropzoneHint}>PNG, JPG ou WebP — 10 Mo max.</span>
-            </label>
+              <span className={styles.tabIcon}>✨</span>
+              Générer
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === "projects" ? styles.active : ""}`}
+              onClick={() => setActiveTab("projects")}
+            >
+              <span className={styles.tabIcon}>🎨</span>
+              Mes Projets ({projects.length})
+            </button>
+          </div>
 
-            <div className={styles.textareaBlock}>
-              <label className={styles.textareaLabel} htmlFor="prompt">
-                Décrivez la transformation souhaitée
-              </label>
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={6}
-                maxLength={280}
-                className={styles.textarea}
-                placeholder="Ex : transforme la scène en style cyberpunk avec palette violette"
-              />
-              <div className={styles.helperRow}>
-                <span className={styles.helperText}>Minimum 4 caractères</span>
-                <span className={styles.helperCount}>{promptLength} / 280</span>
-              </div>
-              <div className={styles.actions}>
-                {pendingProjectId ? (
-                  <button 
-                    type="button" 
-                    onClick={handleLaunchGeneration} 
-                    disabled={loading} 
-                    className={styles.submit}
+          {/* Generate Tab */}
+          {activeTab === "generate" && (
+            <div className={styles.generateSection}>
+              <div className={styles.row}>
+                {/* Upload Card */}
+                <div className={styles.card}>
+                  <h2 className={styles.cardTitle}>Image source</h2>
+                  <p className={styles.cardDescription}>
+                    Importez votre image de base
+                  </p>
+
+                  <label
+                    className={`${styles.uploadZone} ${
+                      filePreview ? styles.uploadZoneFilled : ""
+                    }`}
                   >
-                    {loading ? "Génération en cours…" : "Lancer la génération"}
-                  </button>
-                ) : (
-                  <button type="submit" disabled={!isReady || loading} className={styles.submit}>
-                    {loading ? "Redirection vers le paiement…" : "Générer (2€)"}
-                  </button>
-                )}
-                <button type="button" onClick={handleReset} className={styles.secondary}>
-                  Réinitialiser
-                </button>
-                <div className={styles.feedback} aria-live="polite">
-                  {status && <p className={styles.status}>{status}</p>}
-                  {error && (
-                    <p className={styles.error} role="alert">
-                      {error}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className={styles.fileInput}
+                      disabled={isLoading}
+                    />
 
-          <div className={styles.previewGrid}>
-            <PreviewPanel title="Prévisualisation">
-              {preview ? (
-                <PreviewImage src={preview} alt="Prévisualisation de l'image téléversée" />
-              ) : (
-                <PreviewPlaceholder>
-                  Ajoutez une image pour visualiser le rendu avant envoi.
-                </PreviewPlaceholder>
-              )}
-            </PreviewPanel>
-            <PreviewPanel title="Résultat IA">
-              {generatedUrl ? (
-                <PreviewImage src={generatedUrl} alt="Image générée par l'IA" />
-              ) : (
-                <PreviewPlaceholder>
-                  Les images générées s’afficheront ici après traitement.
-                </PreviewPlaceholder>
-              )}
-            </PreviewPanel>
-          </div>
-        </form>
-
-        <section className={styles.projectsSection}>
-          <div className={styles.projectsHeader}>
-            <div>
-              <h2 className={styles.projectsTitle}>Mes projets</h2>
-              <p className={styles.projectsSubtitle}>
-                Historique des transformations réalisées avec VisionCraft. Chaque ligne est isolée
-                par Supabase via la colonne <code>user_id</code>.
-              </p>
-            </div>
-            <div className={styles.projectsToolbar}>
-              <label className={styles.searchLabel} htmlFor="project-search">
-                Rechercher un prompt
-              </label>
-              <input
-                id="project-search"
-                type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Ex : cyberpunk, aquarelle, portrait…"
-                className={styles.searchInput}
-              />
-              <span className={styles.countPill}>
-                {filteredCount} / {totalProjects || 0} projet
-                {filteredCount !== 1 ? "s" : ""}
-              </span>
-            </div>
-          </div>
-
-          {projectsError && <p className={styles.projectsError}>{projectsError}</p>}
-
-          {projectsLoading ? (
-            <div className={styles.projectsGrid}>
-              {Array.from({ length: skeletonCount }).map((_, index) => (
-                <div key={index} className={styles.skeletonCard}>
-                  <div className={styles.skeletonHeader}>
-                    <div className={styles.skeletonLineLarge} />
-                    <div className={styles.skeletonTag} />
-                  </div>
-                  <div className={styles.skeletonLine} />
-                  <div className={styles.skeletonImage} />
-                  <div className={styles.skeletonActions}>
-                    <div className={styles.skeletonButton} />
-                    <div className={styles.skeletonButton} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredCount === 0 ? (
-            hasActiveFilter ? (
-              <p className={styles.emptyState}>
-                Aucun projet ne correspond à « {searchTerm} ». Ajustez votre recherche ou générez une
-                nouvelle image.
-              </p>
-            ) : (
-              <p className={styles.emptyState}>
-                Aucune transformation pour le moment. Téléversez votre première image ci-dessus pour
-                commencer.
-              </p>
-            )
-          ) : (
-            <div className={styles.projectsGrid}>
-              {filteredProjects.map((project, index) => {
-                const statusLabel =
-                  project.status === "completed"
-                    ? "✅ Terminé"
-                    : project.status === "processing"
-                      ? "⏳ En cours"
-                      : project.status ?? "⚠️ Inconnu";
-
-                return (
-                  <article 
-                    key={project.id} 
-                    className={styles.projectCard}
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className={styles.projectMeta}>
-                      <div className={styles.projectMetaRow}>
-                        <strong>{project.prompt || "Prompt indisponible"}</strong>
-                        <span
-                          className={styles.projectStatus}
-                          data-status={project.status ?? "unknown"}
-                        >
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <span className={styles.projectDate}>
-                        {new Date(project.created_at).toLocaleString("fr-FR")}
-                      </span>
-                    </div>
-                    <div className={styles.projectImages}>
-                      {project.input_image_url && (
+                    {filePreview ? (
+                      <div className={styles.uploadPreview}>
                         <Image
-                          src={project.input_image_url}
-                          alt="Image originelle"
-                          width={800}
-                          height={600}
-                          sizes="(max-width: 600px) 100vw, 50vw"
-                          className={styles.projectImage}
+                          src={filePreview}
+                          alt="Preview"
+                          fill
+                          className={styles.uploadImage}
                         />
-                      )}
-                      {project.output_image_url && (
-                        <Image
-                          src={project.output_image_url}
-                          alt="Image générée"
-                          width={800}
-                          height={600}
-                          sizes="(max-width: 600px) 100vw, 50vw"
-                          className={styles.projectImage}
-                        />
-                      )}
-                    </div>
-                    <div className={styles.projectFooter}>
-                      <div className={styles.projectLinks}>
-                        {project.input_image_url && (
-                          <Link
-                            href={project.input_image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={styles.projectLink}
-                          >
-                            Original
-                          </Link>
-                        )}
-                        {project.output_image_url && (
-                          <Link
-                            href={project.output_image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={styles.projectLink}
-                          >
-                            Résultat
-                          </Link>
-                        )}
+                        <div className={styles.uploadOverlay}>
+                          <span className={styles.uploadText}>
+                            Changer l'image
+                          </span>
+                        </div>
                       </div>
-                      <div className={styles.projectActions}>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPrompt(project.id, project.prompt)}
-                          className={styles.copyButton}
-                        >
-                          Copier le prompt
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleReusePrompt(project.prompt)}
-                          className={styles.reuseButton}
-                        >
-                          Réutiliser
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(project.id)}
-                          className={styles.deleteButton}
-                          disabled={Boolean(deletingId) && deletingId === project.id}
-                        >
-                          {deletingId === project.id ? "Suppression…" : "Supprimer"}
-                        </button>
+                    ) : (
+                      <div className={styles.uploadPlaceholder}>
+                        <div className={styles.uploadIcon}>📷</div>
+                        <p className={styles.uploadText}>
+                          Cliquez ou glissez une image
+                        </p>
+                        <p className={styles.uploadHint}>
+                          PNG, JPG jusqu'à 10MB
+                        </p>
                       </div>
-                    </div>
-                    {copiedPromptId === project.id && (
-                      <p className={styles.copyFeedback}>Prompt copié ✅</p>
                     )}
-                  </article>
-                );
-              })}
+                  </label>
+                </div>
+
+                {/* Prompt Card */}
+                <div className={styles.card}>
+                  <h2 className={styles.cardTitle}>Votre prompt</h2>
+                  <p className={styles.cardDescription}>
+                    Décrivez la transformation souhaitée
+                  </p>
+
+                  <textarea
+                    className={styles.textarea}
+                    placeholder="Ex: Transforme cette photo en style Van Gogh avec des couleurs vibrantes..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    rows={8}
+                    disabled={isLoading}
+                  />
+
+                  {error && (
+                    <div className={styles.error}>
+                      <span className={styles.errorIcon}>⚠️</span>
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    className={styles.buttonPrimary}
+                    onClick={handleCreateAndPay}
+                    disabled={isLoading || !file || !prompt.trim()}
+                  >
+                    {isLoading ? (
+                      <>
+                        <span className={styles.spinner}></span>
+                        Traitement...
+                      </>
+                    ) : (
+                      <>
+                        <span>💳</span>
+                        Payer et Générer
+                      </>
+                    )}
+                  </button>
+                  
+                  <p className={styles.priceInfo}>
+                    3€ par génération
+                  </p>
+                </div>
+              </div>
             </div>
           )}
-        </section>
 
-        <GithubCallout />
-      </section>
-    </main>
-    
-    {/* Modal d'achat de crédits */}
-    {showBuyCreditsModal && (
-      <BuyCreditsModal
-        isOpen={showBuyCreditsModal}
-        onClose={() => setShowBuyCreditsModal(false)}
-        onSuccess={() => {
-          setShowBuyCreditsModal(false);
-          success("Crédits achetés avec succès !");
-        }}
-      />
-    )}
-    </>
+          {/* Projects Tab */}
+          {activeTab === "projects" && (
+            <div className={styles.projectsSection}>
+              {/* Search Bar */}
+              <div className={styles.searchBar}>
+                <span className={styles.searchIcon}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Rechercher un projet..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={styles.searchInput}
+                />
+              </div>
+
+              {/* Projects Grid */}
+              {isLoadingProjects ? (
+                <div className={styles.projectsGrid}>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className={styles.skeletonCard}>
+                      <div className={styles.skeletonImage}></div>
+                      <div className={styles.skeletonText}></div>
+                      <div className={styles.skeletonText}></div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}>🎨</div>
+                  <h3 className={styles.emptyTitle}>
+                    {searchQuery ? "Aucun résultat" : "Aucun projet"}
+                  </h3>
+                  <p className={styles.emptyText}>
+                    {searchQuery
+                      ? "Essayez une autre recherche"
+                      : "Commencez par générer votre première image"}
+                  </p>
+                  {!searchQuery && (
+                    <button
+                      className={styles.buttonPrimary}
+                      onClick={() => setActiveTab("generate")}
+                    >
+                      Créer un projet
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.projectsGrid}>
+                  {filteredProjects.map((project) => (
+                    <div key={project.id} className={styles.projectCard}>
+                      <div className={styles.projectImage}>
+                        <Image
+                          src={project.output_image_url || project.input_image_url}
+                          alt={project.name || "Projet"}
+                          fill
+                          className={styles.projectImg}
+                        />
+                        <div className={styles.projectOverlay}>
+                          <span className={`${styles.projectStatus} ${styles[project.status]}`}>
+                            {project.status === "completed" && "✓ Complété"}
+                            {project.status === "processing" && "⏳ En cours"}
+                            {project.status === "pending" && "⏸ En attente"}
+                            {project.status === "paid" && "💳 Payé"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className={styles.projectContent}>
+                        <h3 className={styles.projectName}>{project.name || "Sans titre"}</h3>
+                        <p className={styles.projectPrompt}>{project.prompt}</p>
+                        
+                        {project.amount && (
+                          <p className={styles.projectPrice}>
+                            Payé : {(project.amount / 100).toFixed(2)}€
+                          </p>
+                        )}
+                        
+                        <div className={styles.projectActions}>
+                          {project.status === "completed" && project.output_image_url && (
+                            <a
+                              href={project.output_image_url}
+                              download
+                              className={styles.projectButton}
+                            >
+                              <span>⬇️</span>
+                              Télécharger
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleDeleteProject(project.id)}
+                            className={styles.projectButtonDanger}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{ color: 'white', fontSize: '1.5rem' }}>Chargement...</div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

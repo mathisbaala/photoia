@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getAllModels, type AIModelId } from "@/lib/ai-models";
+import { getAllModels } from "@/lib/ai-models";
 
 const AI_MODELS = getAllModels();
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getStripeClient, PRICE_PER_GENERATION_EUR } from "@/lib/stripe";
+import { getStripeClient } from "@/lib/stripe";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
 import { 
   sendEmail, 
@@ -106,13 +106,12 @@ export async function POST(request: Request) {
 
 /**
  * Traite l'événement checkout.session.completed
- * Met à jour le projet avec le statut de paiement
+ * Met à jour le projet avec le statut de paiement "paid"
  */
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   const projectId = session.metadata?.project_id;
-  const paymentType = session.metadata?.payment_type || "generation";
 
-  if (!projectId && paymentType !== "credits") {
+  if (!projectId) {
     console.error("project_id manquant dans les metadata de la session:", session.id);
     return;
   }
@@ -124,58 +123,25 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   try {
-    // Si c'est un achat de crédits
-    if (paymentType === "credits") {
-      const userId = session.metadata?.user_id;
-      const creditsPurchased = parseInt(session.metadata?.credits_purchased || "0");
-      
-      if (!userId || !creditsPurchased) {
-        console.error("user_id ou credits_purchased manquant");
-        return;
-      }
+    // Mettre à jour le projet : paiement réussi
+    const updateData: any = {
+      payment_status: "paid",
+      stripe_checkout_session_id: session.id,
+      stripe_payment_intent_id: session.payment_intent as string | null,
+      status: "pending", // Prêt à être généré
+    };
 
-      // Ajouter les crédits à l'utilisateur
-      const { data: existingCredits } = await supabaseService
-        .from("credits")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
-
-      if (existingCredits) {
-        await supabaseService
-          .from("credits")
-          .update({
-            credits_remaining: existingCredits.credits_remaining + creditsPurchased,
-            total_purchased: existingCredits.total_purchased + creditsPurchased,
-          })
-          .eq("user_id", userId);
-      } else {
-        await supabaseService
-          .from("credits")
-          .insert({
-            user_id: userId,
-            credits_remaining: creditsPurchased,
-            total_purchased: creditsPurchased,
-          });
-      }
-
-      console.log(`✅ ${creditsPurchased} crédits ajoutés pour l'utilisateur ${userId}`);
-    } 
-    // Si c'est une génération unique
-    else if (projectId) {
-      await supabaseService
-        .from("projects")
-        .update({
-          payment_status: "paid",
-          stripe_checkout_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent as string | null,
-          payment_amount: PRICE_PER_GENERATION_EUR,
-          status: "pending",
-        })
-        .eq("id", projectId);
-
-      console.log(`✅ Paiement confirmé pour le projet ${projectId}`);
+    // Ajouter le montant si disponible
+    if (session.amount_total) {
+      updateData.payment_amount = session.amount_total / 100; // Convertir centimes en euros
     }
+
+    await supabaseService
+      .from("projects")
+      .update(updateData)
+      .eq("id", projectId);
+
+    console.log(`✅ Paiement confirmé pour le projet ${projectId}`);
   } catch (error) {
     console.error("Erreur lors du traitement du paiement:", error);
   }

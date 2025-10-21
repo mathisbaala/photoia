@@ -24,13 +24,6 @@ export default function ProgressBar({
     return () => clearTimeout(timer);
   }, [progress]);
 
-  const colorClasses = {
-    purple: "bg-purple-600",
-    blue: "bg-blue-600",
-    green: "bg-green-600",
-    pink: "bg-pink-600",
-  };
-
   const gradientClasses = {
     purple: "from-purple-600 to-pink-600",
     blue: "from-blue-600 to-cyan-600",

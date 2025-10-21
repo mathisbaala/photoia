@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStripeClient, PRICE_PER_GENERATION, PRICE_PER_GENERATION_EUR } from "@/lib/stripe";
+import { getStripeClient } from "@/lib/stripe";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
 import { supabaseRoute } from "@/lib/supabase-route";
 import { getModelById, getDefaultModel } from "@/lib/ai-models";
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}&pending_project=${projectId}`,
       cancel_url: `${baseUrl}/dashboard`,
       metadata: {
         project_id: projectId,

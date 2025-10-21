@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase-admin";
 import { supabaseRoute } from "@/lib/supabase-route";
 import { getReplicateClient } from "@/lib/replicate";
+import { getModelById } from "@/lib/ai-models";
 import type { Database } from "@/lib/database.types";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-type ProjectInsert = Database["public"]["Tables"]["projects"]["Insert"];
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * POST /api/generate
+ * 
+ * Génère une image à partir d'un projet payé.
+ * Le projet doit avoir payment_status="paid".
+ * 
+ * Body: { projectId: string }
+ */
 export async function POST(request: Request) {
   try {
+    // Vérifier l'authentification
     const supabaseUser = await supabaseRoute();
-    const supabaseTyped = supabaseUser as unknown as SupabaseClient<Database, "public">;
     const {
       data: { user },
       error: userError,
@@ -21,111 +27,107 @@ export async function POST(request: Request) {
 
     if (userError || !user) {
       return NextResponse.json(
-        { error: "Impossible de vérifier la session Supabase." },
+        { error: "Non authentifié" },
         { status: 401 },
       );
     }
 
-    const formData = await request.formData();
-    const projectId = (formData.get("projectId") ?? "").toString().trim();
-    const image = formData.get("image");
-    const prompt = (formData.get("prompt") ?? "").toString().trim();
+    // Récupérer le projectId
+    const body = await request.json();
+    const { projectId } = body;
 
-    if (!(image instanceof File)) {
+    if (!projectId) {
       return NextResponse.json(
-        { error: "Aucune image valide n'a été fournie." },
+        { error: "Le projectId est requis" },
         { status: 400 },
       );
     }
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: "Veuillez décrire la transformation souhaitée." },
-        { status: 400 },
-      );
-    }
-
-    // Si un projectId est fourni, vérifier le paiement
-    if (projectId) {
-      const supabaseService = getSupabaseServiceClient();
-      if (!supabaseService) {
-        return NextResponse.json(
-          { error: "Configuration Supabase incomplète côté serveur." },
-          { status: 500 },
-        );
-      }
-
-      const { data: projectData, error: projectError } = await supabaseService
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .single();
-
-      if (projectError || !projectData) {
-        return NextResponse.json(
-          { error: "Projet introuvable." },
-          { status: 404 },
-        );
-      }
-
-      const project = projectData as Database["public"]["Tables"]["projects"]["Row"];
-
-      if (project.user_id !== user.id) {
-        return NextResponse.json(
-          { error: "Vous n'êtes pas autorisé à générer ce projet." },
-          { status: 403 },
-        );
-      }
-
-      if (project.payment_status !== "paid") {
-        return NextResponse.json(
-          { error: "Le paiement est requis avant de générer l'image." },
-          { status: 402 },
-        );
-      }
-    }
-
+    // Récupérer le projet
     const supabaseService = getSupabaseServiceClient();
     if (!supabaseService) {
       return NextResponse.json(
-        { error: "Configuration Supabase incomplète côté serveur." },
+        { error: "Configuration Supabase incomplète" },
         { status: 500 },
       );
     }
 
-    const inputBucket = process.env.SUPABASE_INPUT_BUCKET ?? "input-images";
-    const outputBucket = process.env.SUPABASE_OUTPUT_BUCKET ?? "output-images";
-    const finalProjectId = projectId || crypto.randomUUID();
-    const inputPath = `raw/${finalProjectId}-${image.name.replace(/\s+/g, "-")}`;
+    const { data: projectData, error: projectError } = await supabaseService
+      .from("projects")
+      .select("*")
+      .eq("id", projectId)
+      .single();
 
-    const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const uploadInput = await supabaseService.storage
-      .from(inputBucket)
-      .upload(inputPath, imageBuffer, {
-        contentType: image.type || "image/png",
-        upsert: false,
-      });
-
-    if (uploadInput.error) {
-      throw new Error(uploadInput.error.message);
+    if (projectError || !projectData) {
+      return NextResponse.json(
+        { error: "Projet introuvable" },
+        { status: 404 },
+      );
     }
 
-    const { data: inputPublic } = supabaseService.storage
-      .from(inputBucket)
-      .getPublicUrl(inputPath);
+    const project = projectData as Database["public"]["Tables"]["projects"]["Row"];
 
-    if (!inputPublic?.publicUrl) {
-      throw new Error("Impossible de récupérer l'URL publique de l'image d'origine.");
+    // Vérifier l'appartenance
+    if (project.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "Non autorisé" },
+        { status: 403 },
+      );
     }
 
+    // Vérifier le paiement
+    if (project.payment_status !== "paid") {
+      return NextResponse.json(
+        { error: "Le paiement est requis avant de générer l'image" },
+        { status: 402 },
+      );
+    }
+
+    // Marquer le projet comme "processing"
+    await supabaseService
+      .from("projects")
+      .update({ status: "processing" })
+      .eq("id", projectId);
+
+    // Récupérer le modèle IA
+    const model = getModelById(project.model_id || "flux-dev");
+    if (!model) {
+      return NextResponse.json(
+        { error: "Modèle IA introuvable" },
+        { status: 400 },
+      );
+    }
+
+    // Appeler Replicate avec l'ID du modèle
     const replicate = getReplicateClient();
-    const output = await replicate.run("google/nano-banana", {
-      input: {
-        image: inputPublic.publicUrl,
-        prompt,
-      },
-    });
+    
+    let output: any;
+    try {
+      output = await replicate.run(model.id as any, {
+        input: {
+          image: project.input_image_url,
+          prompt: project.prompt,
+        },
+      });
+    } catch (replicateError: any) {
+      console.error("Erreur Replicate:", replicateError);
+      
+      // Marquer le projet comme failed
+      await supabaseService
+        .from("projects")
+        .update({ 
+          status: "failed",
+          error_message: replicateError.message || "Erreur lors de la génération"
+        })
+        .eq("id", projectId);
+      
+      return NextResponse.json(
+        { error: "Erreur lors de la génération de l'image" },
+        { status: 500 },
+      );
+    }
 
+    // Extraire l'URL de sortie
     let outputUrl: string | null = null;
     if (typeof output === "string") {
       outputUrl = output;
@@ -142,76 +144,69 @@ export async function POST(request: Request) {
     }
 
     if (!outputUrl) {
-      throw new Error("Le modèle Replicate n'a pas retourné d'image exploitable.");
+      await supabaseService
+        .from("projects")
+        .update({ 
+          status: "failed",
+          error_message: "Le modèle n'a pas retourné d'image"
+        })
+        .eq("id", projectId);
+      
+      return NextResponse.json(
+        { error: "Le modèle n'a pas retourné d'image exploitable" },
+        { status: 500 },
+      );
     }
 
+    // Télécharger l'image générée
     const generatedResponse = await fetch(outputUrl);
     if (!generatedResponse.ok) {
-      throw new Error("Impossible de télécharger l'image générée.");
+      throw new Error("Impossible de télécharger l'image générée");
     }
 
     const generatedBuffer = Buffer.from(await generatedResponse.arrayBuffer());
-    const outputPath = `generated/${finalProjectId}.png`;
 
-    const uploadOutput = await supabaseService.storage
-      .from(outputBucket)
+    // Upload vers Supabase Storage
+    const outputPath = `generated/${projectId}-output.png`;
+    const { error: uploadError } = await supabaseService.storage
+      .from("images")
       .upload(outputPath, generatedBuffer, {
-        contentType: generatedResponse.headers.get("content-type") ?? "image/png",
+        contentType: "image/png",
         upsert: true,
       });
 
-    if (uploadOutput.error) {
-      throw new Error(uploadOutput.error.message);
+    if (uploadError) {
+      console.error("Erreur upload image générée:", uploadError);
+      throw new Error("Erreur lors de l'upload de l'image générée");
     }
 
-    const { data: outputPublic } = supabaseService.storage
-      .from(outputBucket)
+    // Récupérer l'URL publique
+    const { data: outputPublicData } = supabaseService.storage
+      .from("images")
       .getPublicUrl(outputPath);
 
-    if (!outputPublic?.publicUrl) {
-      throw new Error("Impossible de récupérer l'URL publique de l'image générée.");
-    }
+    // Mettre à jour le projet
+    await supabaseService
+      .from("projects")
+      .update({
+        status: "completed",
+        generated_image_url: outputPublicData.publicUrl,
+      })
+      .eq("id", projectId);
 
-    // Si le projet existe déjà (avec paiement), on le met à jour
-    if (projectId) {
-      const { error: updateError } = await supabaseTyped
-        .from("projects")
-        .update({
-          output_image_url: outputPublic.publicUrl,
-          status: "completed",
-        })
-        .eq("id", projectId);
-
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-    } else {
-      // Sinon, on crée un nouveau projet (ancien comportement)
-      const { error: insertError } = await supabaseTyped
-        .from("projects")
-        .insert([
-          {
-            id: finalProjectId,
-            input_image_url: inputPublic.publicUrl,
-            output_image_url: outputPublic.publicUrl,
-            prompt,
-            status: "completed",
-            user_id: user.id,
-          } satisfies ProjectInsert,
-        ]);
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
-    }
-
-    return NextResponse.json({ outputUrl: outputPublic.publicUrl });
-  } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : "Erreur interne";
-    const message = /402/.test(rawMessage) || /insufficient credit/i.test(rawMessage)
-      ? "Crédits Replicate insuffisants. Ajoutez du crédit sur https://replicate.com/account/billing avant de réessayer."
-      : rawMessage;
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      project: {
+        id: projectId,
+        status: "completed",
+        generated_image_url: outputPublicData.publicUrl,
+      },
+    });
+  } catch (error: any) {
+    console.error("Erreur /api/generate:", error);
+    return NextResponse.json(
+      { error: error.message || "Erreur serveur" },
+      { status: 500 },
+    );
   }
 }
