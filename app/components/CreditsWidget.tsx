@@ -47,8 +47,8 @@ export default function CreditsWidget({ onBuyClick }: CreditsWidgetProps) {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl px-6 py-4 shadow-lg animate-pulse">
-        <div className="h-12 bg-white/20 rounded"></div>
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-lg border border-gray-200/50">
+        <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
       </div>
     );
   }
@@ -59,35 +59,33 @@ export default function CreditsWidget({ onBuyClick }: CreditsWidgetProps) {
   return (
     <div
       className={`
-        relative overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-purple-700 
-        rounded-2xl px-7 py-5 shadow-2xl
-        transition-all duration-500 hover:shadow-purple-500/50 hover:shadow-2xl hover:scale-[1.03]
-        animate-gradientShift backdrop-blur-lg border border-white/20
-        ${isAnimating ? "animate-bounceIn" : ""}
-        ${lowCredits ? "animate-pulseGlow" : ""}
+        relative overflow-hidden bg-white/95 backdrop-blur-xl
+        rounded-2xl px-6 py-4 shadow-lg border border-gray-200/50
+        transition-all duration-300 hover:shadow-xl hover:border-purple-300/50
+        ${isAnimating ? "animate-scaleIn" : ""}
+        ${lowCredits ? "border-orange-300/70 bg-orange-50/30" : ""}
       `}
     >
-      {/* Shine effect overlay */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine pointer-events-none" />
-      
-      <div className="relative flex items-center justify-between text-white">
-        <div className="flex items-center gap-5">
-          <div className={`text-5xl transition-transform duration-300 ${isAnimating ? "scale-110" : ""} animate-float`}>
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className={`text-3xl transition-transform duration-300 ${isAnimating ? "scale-110" : ""}`}>
             💎
           </div>
           <div>
-            <p className="text-sm font-bold opacity-90 tracking-wide uppercase">Vos crédits</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+              Vos crédits
+            </p>
             <p
               className={`
-                text-4xl font-black tracking-tight
-                transition-all duration-500
-                ${lowCredits ? "text-yellow-300 animate-pulse" : ""}
+                text-3xl font-black tracking-tight
+                transition-all duration-300
+                ${lowCredits ? "text-orange-600" : "bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"}
               `}
             >
               {remaining}
               {lowCredits && (
-                <span className="text-xs ml-3 bg-yellow-400 text-yellow-900 px-3 py-1.5 rounded-full font-bold animate-bounce inline-block">
-                  ⚠️ Presque épuisés !
+                <span className="text-xs ml-2 bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-bold inline-block border border-orange-300">
+                  ⚠️ Faible
                 </span>
               )}
             </p>
@@ -97,29 +95,28 @@ export default function CreditsWidget({ onBuyClick }: CreditsWidgetProps) {
         <button
           onClick={onBuyClick}
           className="
-            relative bg-white text-purple-600 px-7 py-3.5 rounded-xl font-bold text-base
-            hover:bg-gradient-to-r hover:from-yellow-400 hover:to-orange-400 hover:text-white
-            transition-all duration-300
-            transform hover:scale-110 active:scale-95 hover:-translate-y-1
-            shadow-xl hover:shadow-2xl
-            group overflow-hidden
+            relative bg-gradient-to-r from-purple-600 to-pink-600
+            text-white px-5 py-2.5 rounded-xl font-semibold text-sm
+            hover:from-purple-700 hover:to-pink-700
+            transition-all duration-200
+            transform hover:scale-105 active:scale-95
+            shadow-md hover:shadow-lg
+            group
           "
         >
-          {/* Button shine effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 animate-shine pointer-events-none" />
           <span className="relative flex items-center gap-2">
-            <span className="text-xl group-hover:rotate-90 transition-transform duration-300">+</span>
+            <span className="text-lg transition-transform duration-200 group-hover:rotate-90">+</span>
             <span>Acheter</span>
           </span>
         </button>
       </div>
 
       {credits && credits.total_purchased > 0 && (
-        <div className="relative mt-4 pt-3 border-t border-white/30 animate-fadeIn">
-          <p className="text-white/90 text-sm font-medium flex items-center gap-2">
-            <span className="text-base">🎯</span>
+        <div className="relative mt-3 pt-3 border-t border-gray-200">
+          <p className="text-gray-600 text-xs font-medium flex items-center gap-1.5">
+            <span className="text-sm">📊</span>
             <span>
-              Total acheté : <span className="font-black text-lg text-yellow-300">{credits.total_purchased}</span> crédits
+              Total acheté : <span className="font-bold text-purple-600">{credits.total_purchased}</span> crédits
             </span>
           </p>
         </div>
